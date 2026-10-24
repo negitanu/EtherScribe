@@ -1,0 +1,65 @@
+{
+  "name": "etherscribe",
+  "productName": "EtherScribe",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Firewall parameter sheet desktop tool",
+  "main": "dist-electron/main/main.js",
+  "scripts": {
+    "build:engine": "bash ../scripts/build-engine.sh",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "dev": "npm run build:engine && npm run build:electron && vite",
+    "build": "npm run build:engine && vite build && npm run build:electron",
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "pack": "npm run build && electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.negitanu.etherscribe",
+    "productName": "EtherScribe",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "resources/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/engine",
+        "to": "engine",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        "dir"
+      ]
+    },
+    "win": {
+      "target": [
+        "dir"
+      ]
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "vite-plugin-electron": "^0.28.8",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "allowScripts": {
+    "electron@33.4.11": true,
+    "esbuild@0.25.12": true
+  }
+}

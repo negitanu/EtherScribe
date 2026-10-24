@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; frame-src 'self' about:; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>EtherScribe</title><link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<aside class="sidebar">
+ <a class="brand" href="#"><span class="brand-icon">E</span><span>EtherScribe<small>NETWORK DOCUMENTATION</small></span></a>
+ <div class="nav-label">ワークスペース</div>
+ <nav aria-label="作業の選択"><button class="nav active" id="tabConvert" aria-pressed="true">▤ <span>パラメータシート</span></button><button class="nav" id="tabCompare" aria-pressed="false">⇄ <span>設定差分</span></button></nav>
+ <div class="sidebar-note"><span class="local-dot"></span> ローカルで処理<p>設定ファイルは外部に送信せず、選択した保存先にのみ出力します。</p></div>
+ <div id="engineStatus" class="engine-status" role="status">エンジン接続中…</div>
+</aside>
+<main>
+ <header class="page-header"><div><div class="eyebrow">CONFIGURATION WORKSPACE</div><h1 id="pageTitle">パラメータシート</h1><p id="pageDescription">機器の設定を、読みやすいドキュメントへ。</p></div><span class="badge">Go + Electron</span></header>
+ <div class="workspace">
+ <div class="controls">
+ <section class="card" id="convertInput"><div class="section-heading"><span class="step">01</span><h2>設定ファイル</h2><span class="muted">INPUT</span></div><button id="pickConvert" class="file-picker"><span class="file-icon">＋</span><strong>設定ファイルを選択</strong><span>FortiGate · Palo Alto · Junos EX</span><small>.conf / .xml / .set / .txt</small></button><p id="convertPath" class="path">ファイルが選択されていません</p></section>
+ <section class="card" id="compareInput" hidden><div class="section-heading"><span class="step">01</span><h2>比較する設定</h2></div><p class="hint">同一機器のインターフェース・ルート・ポリシーを比較します。</p><button id="pickBefore" class="secondary">変更前を選択</button><p id="beforePath" class="path">未選択</p><button id="pickAfter" class="secondary">変更後を選択</button><p id="afterPath" class="path">未選択</p></section>
+ <section class="card"><div class="section-heading"><span class="step">02</span><h2>出力設定</h2><span class="muted">OUTPUT</span></div>
+ <label class="field">出力形式<select id="format"><option value="html">HTML — 閲覧・印刷</option><option value="excel">Excel — 編集・台帳管理</option><option value="json">JSON — データ連携</option></select></label>
+ <div id="convertOptions"><label class="field">用途別プリセット<select id="preset" disabled><option>読み込み中…</option></select></label><p id="presetDescription" class="hint"></p><details><summary>出力する項目を調整 <span id="sectionCount"></span></summary><div id="sections" class="section-options"></div></details></div>
+ <p class="hint">秘密値は伏せて出力します。未対応の設定は「解析範囲」で確認できます。</p>
+ <button id="run" class="primary" disabled>パラメータシートを生成して保存</button>
+ </section>
+ <div class="support"><strong>対応機器</strong><p>FortiGate / FortiOS<br>Palo Alto / PAN-OS XML<br>Juniper EX / Junos ELS</p></div>
+ </div>
+ <section class="card result-card" aria-labelledby="resultTitle"><div class="section-heading"><h2 id="resultTitle">生成結果</h2><span id="resultBadge" class="badge">準備</span></div><div id="result" role="status" aria-live="polite" class="result-empty"><div class="empty-icon">▤</div><h3>ドキュメントの準備を始めましょう</h3><p>設定ファイルと出力内容を選択して生成します。<br>HTML は保存後にここでプレビューできます。</p></div><p id="deviceSummary" class="device-summary" hidden></p><div id="metrics" class="metrics" hidden></div><p id="outputPath" class="path"></p><iframe id="preview" title="生成したレポートのプレビュー" sandbox="" hidden></iframe></section>
+ </div>
+ <footer>EtherScribe <span>設定を読み解き、ネットワークを記録する。</span></footer>
+</main><script type="module" src="./main.ts"></script>
+</body></html>
