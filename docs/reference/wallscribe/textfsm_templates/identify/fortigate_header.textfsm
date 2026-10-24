@@ -1,0 +1,6 @@
+Value MODEL_PREFIX (FGT|FG)
+Value MODEL_CODE ([A-Z0-9]+)
+Value OS_VERSION (\d+(?:\.\d+){1,3})
+
+Start
+  ^\#config-version=${MODEL_PREFIX}${MODEL_CODE}-${OS_VERSION}-FW(?:-build\d+)? -> Record

@@ -1,0 +1,247 @@
+<config version="10.0.0">
+  <shared>
+    <application>
+      <entry name="custom-web">
+        <default>
+          <port>
+            <member>tcp/8443</member>
+          </port>
+        </default>
+      </entry>
+    </application>
+    <application-group>
+      <entry name="web-group">
+        <members>
+          <member>custom-web</member>
+        </members>
+      </entry>
+    </application-group>
+  </shared>
+  <devices>
+    <entry name="localhost.localdomain">
+      <network>
+        <interface>
+          <ethernet>
+            <entry name="ethernet1/1">
+              <layer3>
+                <ip>
+                  <entry name="192.0.2.1/24" />
+                </ip>
+              </layer3>
+            </entry>
+            <entry name="ethernet1/2">
+              <layer3>
+                <ip>
+                  <entry name="198.51.100.1/24" />
+                </ip>
+              </layer3>
+            </entry>
+          </ethernet>
+        </interface>
+        <ike>
+          <gateway>
+            <entry name="TO-PEER">
+              <authentication>
+                <pre-shared-key>
+                  <key>ENC hidden-ike-psk</key>
+                </pre-shared-key>
+              </authentication>
+              <local-address>
+                <interface>ethernet1/1</interface>
+              </local-address>
+              <peer-address>
+                <ip>203.0.113.1</ip>
+              </peer-address>
+              <protocol>
+                <ikev2>
+                  <ike-crypto-profile>default</ike-crypto-profile>
+                </ikev2>
+              </protocol>
+            </entry>
+          </gateway>
+        </ike>
+        <virtual-router>
+          <entry name="VR-A">
+            <interface>
+              <member>ethernet1/1</member>
+            </interface>
+            <routing-table>
+              <ip>
+                <static-route>
+                  <entry name="to-B">
+                    <destination>198.51.100.0/24</destination>
+                    <nexthop>
+                      <next-vr>VR-B</next-vr>
+                    </nexthop>
+                  </entry>
+                </static-route>
+              </ip>
+              <ipv6>
+                <static-route>
+                  <entry name="v6">
+                    <destination>2001:db8::/32</destination>
+                    <nexthop>
+                      <discard />
+                    </nexthop>
+                  </entry>
+                </static-route>
+              </ipv6>
+            </routing-table>
+          </entry>
+          <entry name="VR-B">
+            <interface>
+              <member>ethernet1/2</member>
+            </interface>
+          </entry>
+        </virtual-router>
+      </network>
+      <vsys>
+        <entry name="vsys1">
+          <visible-vsys>
+            <member>vsys2</member>
+          </visible-vsys>
+          <import>
+            <network>
+              <interface>
+                <member>ethernet1/1</member>
+              </interface>
+              <virtual-router>
+                <member>VR-A</member>
+              </virtual-router>
+            </network>
+          </import>
+          <address>
+            <entry name="LAN">
+              <ip-netmask>10.0.0.0/24</ip-netmask>
+            </entry>
+            <entry name="WEB">
+              <fqdn>www.example.com</fqdn>
+            </entry>
+          </address>
+          <address-group>
+            <entry name="LAN-GRP">
+              <static>
+                <member>LAN</member>
+              </static>
+            </entry>
+          </address-group>
+          <service>
+            <entry name="HTTP-ALT">
+              <protocol>
+                <tcp>
+                  <port>8080</port>
+                </tcp>
+              </protocol>
+            </entry>
+          </service>
+          <service-group>
+            <entry name="WEB-SVC">
+              <members>
+                <member>HTTP-ALT</member>
+              </members>
+            </entry>
+          </service-group>
+          <zone>
+            <entry name="trust">
+              <network>
+                <layer3>
+                  <member>ethernet1/1</member>
+                </layer3>
+              </network>
+            </entry>
+            <entry name="to-vsys2">
+              <network>
+                <external>
+                  <member>vsys2</member>
+                </external>
+              </network>
+            </entry>
+          </zone>
+          <rulebase>
+            <nat>
+              <rules>
+                <entry name="outbound-snat">
+                  <from>
+                    <member>trust</member>
+                  </from>
+                  <to>
+                    <member>to-vsys2</member>
+                  </to>
+                  <source>
+                    <member>LAN</member>
+                  </source>
+                  <destination>
+                    <member>any</member>
+                  </destination>
+                  <service>any</service>
+                  <to-interface>ethernet1/1</to-interface>
+                  <source-translation>
+                    <dynamic-ip-and-port>
+                      <interface-address>
+                        <interface>ethernet1/1</interface>
+                      </interface-address>
+                    </dynamic-ip-and-port>
+                  </source-translation>
+                </entry>
+              </rules>
+            </nat>
+            <security>
+              <rules>
+                <entry name="app-web">
+                  <from>
+                    <member>trust</member>
+                  </from>
+                  <to>
+                    <member>to-vsys2</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>any</member>
+                  </destination>
+                  <service>
+                    <member>application-default</member>
+                  </service>
+                  <application>
+                    <member>web-group</member>
+                  </application>
+                  <action>allow</action>
+                  <disabled>no</disabled>
+                  <log-start>no</log-start>
+                  <log-end>yes</log-end>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+        </entry>
+        <entry name="vsys2">
+          <visible-vsys>
+            <member>vsys1</member>
+          </visible-vsys>
+          <address>
+            <entry name="REMOTE">
+              <ip-netmask>203.0.113.0/24</ip-netmask>
+            </entry>
+          </address>
+          <zone>
+            <entry name="untrust">
+              <network>
+                <layer3>
+                  <member>ethernet1/2</member>
+                </layer3>
+              </network>
+            </entry>
+            <entry name="from-vsys1">
+              <network>
+                <external>
+                  <member>vsys1</member>
+                </external>
+              </network>
+            </entry>
+          </zone>
+        </entry>
+      </vsys>
+    </entry>
+  </devices>
+</config>

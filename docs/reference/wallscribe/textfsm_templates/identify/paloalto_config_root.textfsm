@@ -1,0 +1,4 @@
+Value VERSION ([^"]+)
+
+Start
+  ^<config\s+version="${VERSION}">\s* -> Record

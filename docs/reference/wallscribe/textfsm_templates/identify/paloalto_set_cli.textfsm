@@ -1,0 +1,4 @@
+Value KIND (deviceconfig|mgt-config|network|vsys|shared|profiles|panorama)
+
+Start
+  ^set\s+${KIND}\s+ -> Record

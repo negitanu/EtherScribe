@@ -1,0 +1,113 @@
+# Dependencies / build
+node_modules/
+desktop/dist/
+desktop/dist-electron/
+desktop/release/
+desktop/resources/engine/
+core/etherscribe
+core/etherscribe.exe
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+core/vendor/
+*.test
+*.out
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Secrets / real configs / outputs
+.env
+.env.*
+!.env.example
+*.conf
+!core/testdata/*.conf
+*.xml
+!core/testdata/*.xml
+/tmp/
+runtime/
+exports/
+*.xlsx
+*.pdf
+
+# Keep in-repo WallScribe reference copies
+!docs/reference/**
+
+# Logs / caches
+*.log
+.npm/
+.cache/
+coverage/
+
+# Local credentials / environment
+.aws/
+.ssh/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+secrets.json
+.envrc
+.direnv/
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.python-version
+.node-version
+.tool-versions
+
+# Local agent/editor state (shared rules and skills remain tracked)
+.claude/settings.local.json
+.claude/projects/
+.codex/
+*.local
+*.local.*
+*~
+*.swo
+
+# Databases and recovery data
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.bak
+*.backup
+*.bundle
+/backups/
+/backup/
+
+# Generated reports, caches, test artifacts
+/build/
+/dist/
+/artifacts/
+/test-results/
+/playwright-report/
+/screenshots/
+/exports/
+/output/
+/outputs/
+/temp/
+.gocache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vite/
+*.tsbuildinfo
+coverage.out
+coverage.xml
+*.prof
+
+# Real device CLI configurations; only synthetic fixtures belong in Git
+*.set
+!core/testdata/*.set

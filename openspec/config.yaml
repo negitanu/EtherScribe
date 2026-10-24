@@ -1,0 +1,21 @@
+schema: spec-driven
+context: |
+  Project: EtherScribe — FortiGate / Palo Alto 設定からパラメータシートを生成する
+  デスクトップアプリ（Golang コア + Electron GUI）。
+  このリポジトリ単体が作業ルート。Planning language: Japanese. SHALL/MUST.
+  WallScribe 機能参照は docs/reference/wallscribe/（SPECIFICATION, TextFSM, 識別・秘匿・セクション原典）。
+  隣接 ../WallScribe は必須ではない。
+  Stack: Go 1.23+ (core/), Electron+TypeScript (desktop/), stdio JSON-RPC.
+  対象: FortiGate .conf / Palo Alto .xml。出力: HTML / Excel / JSON + diff。
+  設定・生成物はアプリが永続保存しない。合成 fixture は core/testdata/。
+  実機書き込み・PDF・構築テストは後続。
+rules:
+  specs:
+    - Every requirement must include testable WHEN/THEN scenarios.
+    - Use SHALL/MUST for normative requirements.
+  design:
+    - Prefer decisions that keep Go core runnable as CLI without Electron.
+    - Prefer docs/reference/wallscribe over editing external WallScribe.
+  tasks:
+    - Include tests against core/testdata fixtures.
+    - Include OpenSpec validation checkpoints.

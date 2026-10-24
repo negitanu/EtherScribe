@@ -1,0 +1,15 @@
+Value HOSTNAME (\S+)
+Value VSYS (\S+)
+Value NAME (\S+|\"[^\"]+\")
+Value IP_NETMASK (\S+(?:\s+\S+)?)
+Value IP_RANGE (\S+)
+Value FQDN (\S+)
+
+Start
+  ^set\s+deviceconfig\s+system\s+hostname\s+${HOSTNAME}\s*$$ -> Record
+  ^set\s+vsys\s+${VSYS}\s+address\s+${NAME}\s+ip-netmask\s+${IP_NETMASK}\s*$$ -> Record
+  ^set\s+shared\s+address\s+${NAME}\s+ip-netmask\s+${IP_NETMASK}\s*$$ -> Record
+  ^set\s+vsys\s+${VSYS}\s+address\s+${NAME}\s+ip-range\s+${IP_RANGE}\s*$$ -> Record
+  ^set\s+shared\s+address\s+${NAME}\s+ip-range\s+${IP_RANGE}\s*$$ -> Record
+  ^set\s+vsys\s+${VSYS}\s+address\s+${NAME}\s+fqdn\s+${FQDN}\s*$$ -> Record
+  ^set\s+shared\s+address\s+${NAME}\s+fqdn\s+${FQDN}\s*$$ -> Record
