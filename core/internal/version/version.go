@@ -2,7 +2,7 @@ package version
 
 const (
 	Name    = "EtherScribe"
-	Version = "0.1.0"
+	Version = "1.0.0"
 )
 
 // Info is returned by CLI and RPC.

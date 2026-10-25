@@ -69,3 +69,7 @@ env -u ELECTRON_RUN_AS_NODE desktop/node_modules/.bin/electron scripts/desktop-s
 ```
 
 任意で `ETHERSCRIBE_SCREENSHOT=/tmp/etherscribe.png` を指定すると画面を保存できます。テストの設定・出力・プロファイルは一時ディレクトリに作成し、終了時に削除します。
+
+## v1.0.0 ダウンロード
+
+[GitHub Release v1.0.0](https://github.com/negitanu/EtherScribe/releases/tag/v1.0.0) から Windows x64 ZIP、Mac Apple Silicon ZIP/DMG、SHA256SUMS.txt をダウンロードできます。署名・実行時の制約は [Release notes](docs/releases/v1.0.0.md)、ビルドと検査は [Release 手順](docs/release-process.md) を参照してください。

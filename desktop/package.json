@@ -1,17 +1,20 @@
 {
   "name": "etherscribe",
   "productName": "EtherScribe",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Firewall parameter sheet desktop tool",
   "main": "dist-electron/main/main.js",
   "scripts": {
-    "build:engine": "bash ../scripts/build-engine.sh",
+    "build:engine": "node ../scripts/build-engine.mjs",
     "build:electron": "tsc -p tsconfig.electron.json",
     "dev": "npm run build:engine && npm run build:electron && vite",
-    "build": "npm run build:engine && vite build && npm run build:electron",
+    "build": "npm run build:engine && npm run build:ui",
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
-    "pack": "npm run build && electron-builder --dir"
+    "pack": "npm run build && electron-builder --dir",
+    "build:ui": "vite build && npm run build:electron",
+    "release:mac": "electron-builder --mac zip dmg --arm64 --publish never",
+    "release:win": "electron-builder --win zip --x64 --publish never"
   },
   "build": {
     "appId": "com.negitanu.etherscribe",
@@ -22,7 +25,7 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "resources/**/*"
+      "!**/*.map"
     ],
     "extraResources": [
       {
@@ -31,23 +34,41 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "../core/third_party/text/LICENSE",
+        "to": "licenses/golang-x-text-LICENSE.txt"
+      },
+      {
+        "from": "../core/third_party/text/PATENTS",
+        "to": "licenses/golang-x-text-PATENTS.txt"
+      },
+      {
+        "from": "../core/third_party/go/LICENSE",
+        "to": "licenses/Go-LICENSE.txt"
       }
     ],
     "mac": {
       "target": [
         "dir"
-      ]
+      ],
+      "identity": null,
+      "category": "public.app-category.utilities"
     },
     "win": {
       "target": [
         "dir"
-      ]
+      ],
+      "signAndEditExecutable": false
     },
     "linux": {
       "target": [
         "dir"
       ]
-    }
+    },
+    "artifactName": "EtherScribe-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "afterPack": "../scripts/sign-mac.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

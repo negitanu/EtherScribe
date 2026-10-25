@@ -1,0 +1,148 @@
+name: Desktop binaries
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  engines:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: stable
+          cache: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Audit public source, history and version
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          if [[ "$RELEASE_REF" == refs/tags/* ]]; then
+            python3 scripts/audit-release.py --history --tag "${RELEASE_REF#refs/tags/}"
+          else
+            python3 scripts/audit-release.py --history
+          fi
+      - name: Test synthetic fixtures
+        working-directory: core
+        run: go test ./...
+      - name: Verify exported fixture keys
+        run: bash scripts/check-fixture-keys.sh
+      - name: Cross-compile both engines
+        run: |
+          node scripts/build-engine.mjs windows amd64 artifacts/engines/windows-amd64/etherscribe.exe
+          node scripts/build-engine.mjs darwin arm64 artifacts/engines/darwin-arm64/etherscribe
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: engines
+          path: artifacts/engines/
+          if-no-files-found: error
+          retention-days: 7
+  desktop:
+    needs: engines
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: windows
+            arch: amd64
+            engine: windows-amd64/etherscribe.exe
+            script: release:win
+            unpacked: desktop/release/win-unpacked
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+            engine: darwin-arm64/etherscribe
+            script: release:mac
+            unpacked: desktop/release/mac-arm64/EtherScribe.app
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: engines
+          path: artifacts/engines
+      - name: Install locked dependencies
+        working-directory: desktop
+        run: npm ci --no-audit --no-fund
+      - name: Test distribution rejection gates
+        run: node --test scripts/release-tools.test.cjs
+      - name: Install cross-compiled engine
+        env:
+          ENGINE_FILE: ${{ matrix.engine }}
+        run: |
+          mkdir -p desktop/resources/engine
+          cp "artifacts/engines/$ENGINE_FILE" desktop/resources/engine/
+          if [[ "$RUNNER_OS" == macOS ]]; then chmod +x desktop/resources/engine/etherscribe; fi
+      - name: Build renderer and Electron main
+        working-directory: desktop
+        run: npm run build:ui
+      - name: Package desktop
+        working-directory: desktop
+        run: npm run ${{ matrix.script }}
+      - name: Audit packaged application and test engine RPC
+        run: node scripts/verify-release.mjs '${{ matrix.unpacked }}' '${{ matrix.platform }}' '${{ matrix.arch }}'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: |
+            desktop/release/EtherScribe-*.zip
+            desktop/release/EtherScribe-*.dmg
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: desktop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: desktop-*
+          merge-multiple: true
+          path: artifacts/release
+      - name: Generate asset checksums
+        run: node scripts/release-checksums.mjs artifacts/release
+      - name: Publish verified release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" --verify-tag --draft --title "EtherScribe $RELEASE_TAG" --notes-file docs/releases/v1.0.0.md
+          gh release upload "$RELEASE_TAG" artifacts/release/*
+          gh release edit "$RELEASE_TAG" --draft=false --latest

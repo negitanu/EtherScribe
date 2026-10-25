@@ -18,7 +18,7 @@ export class EngineClient {
   start(): void {
     if (this.child) return;
     const bin = resolveEnginePath();
-    this.child = spawn(bin, ["rpc"], { stdio: ["pipe", "pipe", "pipe"] });
+    this.child = spawn(bin, ["rpc"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
     const rl = readline.createInterface({ input: this.child.stdout });
     rl.on("line", (line) => this.onLine(line));
     this.child.stderr.on("data", (chunk) => {
