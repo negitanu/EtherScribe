@@ -27,6 +27,7 @@ async function fixture(change) {
 for (const [name, change, expected] of [
   ['reject raw configuration', ({ input, write }) => write(input, 'dist/sample.conf', 'DO_NOT_SHIP'), /Configuration\/source map in app payload/],
   ['reject source maps', ({ input, write }) => write(input, 'dist/main.js.map', '{}'), /Configuration\/source map in app payload/],
+  ['reject generated report', ({ input, write }) => write(input, 'dist/report.xlsx', 'DO_NOT_SHIP'), /Unapproved generated file/],
   ['reject environment file', ({ resources, write }) => write(resources, '.env', 'DO_NOT_SHIP'), /Unexpected resources entry/],
   ['reject mismatched version', ({ input, write }) => write(input, 'package.json', JSON.stringify({ name: 'etherscribe', version: '0.0.0' })), /App version mismatch/],
   ['reject wrong architecture', () => {}, /Expected macOS arm64 executable/],

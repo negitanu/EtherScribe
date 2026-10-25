@@ -33,6 +33,7 @@ def main():
         assert args.tag == 'v' + version, 'Tag/version mismatch'
     manifest = json.loads((ROOT / '.test/batfish/manifest.json').read_text())
     public_blobs = set()
+    reference_paths = {".test/batfish/" + entry["path"] for entry in manifest["files"]}
     for entry in manifest['files']:
         data = (ROOT / '.test/batfish' / entry['path']).read_bytes()
         assert hashlib.sha256(data).hexdigest() == entry['sha256'], 'Public reference hash mismatch'
@@ -40,6 +41,7 @@ def main():
     paths = git('ls-files', '-z').decode().split('\0')
     for name in filter(None, paths):
         if name.startswith('.test/batfish/'):
+            assert name in reference_paths or name == '.test/batfish/manifest.json', 'Unregistered reference payload tracked'
             continue
         parts = Path(name).parts
         assert not any(p in {'.data', 'data', '.aws', '.ssh', 'node_modules', 'exports', 'backups'} for p in parts), 'Private/generated path tracked'
