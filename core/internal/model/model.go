@@ -17,6 +17,7 @@ const (
 	ContextVsys            = "vsys"
 	ContextRoutingInstance = "routing-instance"
 	ContextVRF             = "vrf"
+	ContextVirtualRouter   = "virtual-router"
 	ContextDefault         = "default"
 )
 
@@ -67,11 +68,12 @@ type VirtualContext struct {
 }
 
 type VLAN struct {
-	Name        string `json:"name"`
-	VLANID      string `json:"vlanId"`
-	Description string `json:"description,omitempty"`
-	L3Interface string `json:"l3Interface,omitempty"` // irb.x / VlanX
-	Context     string `json:"context,omitempty"`
+	Members     []string `json:"members,omitempty"`
+	Name        string   `json:"name"`
+	VLANID      string   `json:"vlanId"`
+	Description string   `json:"description,omitempty"`
+	L3Interface string   `json:"l3Interface,omitempty"` // irb.x / VlanX
+	Context     string   `json:"context,omitempty"`
 }
 
 type LAG struct {
@@ -90,13 +92,17 @@ type STPSettings struct {
 }
 
 type SystemSettings struct {
-	DNSPrimary   string   `json:"dnsPrimary"`
-	DNSSecondary string   `json:"dnsSecondary"`
-	Timezone     string   `json:"timezone"`
-	HTTPSPort    string   `json:"httpsPort"`
-	SSHPort      string   `json:"sshPort"`
-	NTPServers   []string `json:"ntpServers"`
-	AdminUsers   []Admin  `json:"adminUsers"`
+	ManagementIP      string   `json:"managementIp,omitempty"`
+	ManagementNetmask string   `json:"managementNetmask,omitempty"`
+	ManagementGateway string   `json:"managementGateway,omitempty"`
+	Domain            string   `json:"domain,omitempty"`
+	DNSPrimary        string   `json:"dnsPrimary"`
+	DNSSecondary      string   `json:"dnsSecondary"`
+	Timezone          string   `json:"timezone"`
+	HTTPSPort         string   `json:"httpsPort"`
+	SSHPort           string   `json:"sshPort"`
+	NTPServers        []string `json:"ntpServers"`
+	AdminUsers        []Admin  `json:"adminUsers"`
 }
 
 type Admin struct {
@@ -108,6 +114,12 @@ type Admin struct {
 }
 
 type Interface struct {
+	IPv6Enabled     *bool    `json:"ipv6Enabled,omitempty"`
+	MTU             string   `json:"mtu,omitempty"`
+	RoutingContext  string   `json:"routingContext,omitempty"`
+	Mode            string   `json:"mode,omitempty"`
+	Addresses       []string `json:"addresses,omitempty"`
+	AddressMode     string   `json:"addressMode,omitempty"`
 	Name            string   `json:"name"`
 	Alias           string   `json:"alias"`
 	InterfaceType   string   `json:"interfaceType"` // physical | vlan | lag | irb | svi | l3 | …
@@ -130,18 +142,29 @@ type Interface struct {
 }
 
 type Route struct {
-	Name        string `json:"name"`
-	Destination string `json:"destination"`
-	Gateway     string `json:"gateway"`
-	Interface   string `json:"interface"`
-	Distance    string `json:"distance"`
-	VDOM        string `json:"vdom"`
-	Context     string `json:"context,omitempty"`
-	RouteType   string `json:"routeType"`
-	Enabled     bool   `json:"enabled"`
+	RoutingContext    string `json:"routingContext,omitempty"`
+	DestinationObject string `json:"destinationObject,omitempty"`
+	Action            string `json:"action,omitempty"`
+	Priority          string `json:"priority,omitempty"`
+	Description       string `json:"description,omitempty"`
+	Metric            string `json:"metric,omitempty"`
+	Name              string `json:"name"`
+	Destination       string `json:"destination"`
+	Gateway           string `json:"gateway"`
+	Interface         string `json:"interface"`
+	Distance          string `json:"distance"`
+	VDOM              string `json:"vdom"`
+	Context           string `json:"context,omitempty"`
+	RouteType         string `json:"routeType"`
+	Enabled           bool   `json:"enabled"`
 }
 
 type Policy struct {
+	Applications         []string `json:"applications,omitempty"`
+	SourceUsers          []string `json:"sourceUsers,omitempty"`
+	URLCategories        []string `json:"urlCategories,omitempty"`
+	Tags                 []string `json:"tags,omitempty"`
+	LogStart             bool     `json:"logStart"`
 	PolicyID             string   `json:"policyId"`
 	Name                 string   `json:"name"`
 	SourceInterface      []string `json:"sourceInterface"`
@@ -229,25 +252,34 @@ type Objects struct {
 }
 
 type AddressObject struct {
-	Name        string `json:"name"`
-	Type        string `json:"type"`
-	Value       string `json:"value"`
-	VDOM        string `json:"vdom"`
-	Description string `json:"description,omitempty"`
+	Name        string   `json:"name"`
+	Type        string   `json:"type"`
+	Value       string   `json:"value"`
+	VDOM        string   `json:"vdom"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
 }
 
 type ServiceObject struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Port     string `json:"port"`
-	VDOM     string `json:"vdom"`
+	Name        string   `json:"name"`
+	Protocol    string   `json:"protocol"`
+	Port        string   `json:"port"`
+	VDOM        string   `json:"vdom"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	SourcePort  string   `json:"sourcePort,omitempty"`
+	TCPPort     string   `json:"tcpPort,omitempty"`
+	UDPPort     string   `json:"udpPort,omitempty"`
+	SCTPPort    string   `json:"sctpPort,omitempty"`
 }
 
 type NamedMembers struct {
-	Name        string   `json:"name"`
-	Members     []string `json:"members"`
-	VDOM        string   `json:"vdom"`
-	Description string   `json:"description,omitempty"`
+	Name          string   `json:"name"`
+	Members       []string `json:"members"`
+	VDOM          string   `json:"vdom"`
+	Description   string   `json:"description,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	DynamicFilter string   `json:"dynamicFilter,omitempty"`
 }
 
 // SecurityProfile is the inventory row (WallScribe SecurityProfile).
@@ -377,17 +409,21 @@ type OSPFSettings struct {
 }
 
 type BGPNeighbor struct {
-	IP                  string `json:"ip"`
-	RemoteAS            string `json:"remoteAs"`
-	Description         string `json:"description,omitempty"`
-	UpdateSource        string `json:"updateSource,omitempty"`
-	EBGPMultihop        string `json:"ebgpMultihop,omitempty"`
-	NextHopSelf         bool   `json:"nextHopSelf"`
-	SoftReconfiguration bool   `json:"softReconfiguration"`
-	RouteMapIn          string `json:"routeMapIn,omitempty"`
-	RouteMapOut         string `json:"routeMapOut,omitempty"`
-	Activate            bool   `json:"activate"`
-	Shutdown            bool   `json:"shutdown"`
+	Group               string   `json:"group,omitempty"`
+	LocalAS             string   `json:"localAs,omitempty"`
+	ImportPolicies      []string `json:"importPolicies,omitempty"`
+	ExportPolicies      []string `json:"exportPolicies,omitempty"`
+	IP                  string   `json:"ip"`
+	RemoteAS            string   `json:"remoteAs"`
+	Description         string   `json:"description,omitempty"`
+	UpdateSource        string   `json:"updateSource,omitempty"`
+	EBGPMultihop        string   `json:"ebgpMultihop,omitempty"`
+	NextHopSelf         bool     `json:"nextHopSelf"`
+	SoftReconfiguration bool     `json:"softReconfiguration"`
+	RouteMapIn          string   `json:"routeMapIn,omitempty"`
+	RouteMapOut         string   `json:"routeMapOut,omitempty"`
+	Activate            bool     `json:"activate"`
+	Shutdown            bool     `json:"shutdown"`
 }
 
 type BGPNetwork struct {

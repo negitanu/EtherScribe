@@ -7,6 +7,7 @@ import (
 
 	"github.com/negitanu/etherscribe/internal/identify"
 	"github.com/negitanu/etherscribe/internal/model"
+	"github.com/negitanu/etherscribe/internal/util"
 )
 
 type configRoot struct {
@@ -33,13 +34,27 @@ type deviceConfig struct {
 }
 
 type systemCfg struct {
+	ManagementIP string `xml:"ip-address"`
+	Netmask      string `xml:"netmask"`
+	Gateway      string `xml:"default-gateway"`
+	Domain       string `xml:"domain"`
+	Timezone     string `xml:"timezone"`
+	DNS          struct {
+		Primary   string `xml:"primary"`
+		Secondary string `xml:"secondary"`
+	} `xml:"dns-setting>servers"`
+	NTP struct {
+		Primary   string `xml:"primary-ntp-server>ntp-server-address"`
+		Secondary string `xml:"secondary-ntp-server>ntp-server-address"`
+	} `xml:"ntp-servers"`
 	Hostname string `xml:"hostname"`
 }
 
 type network struct {
-	Interface     interfaceBlk `xml:"interface"`
-	VirtualRouter vrBlk        `xml:"virtual-router"`
-	IKE           ikeBlk       `xml:"ike"`
+	Interface     interfaceBlk   `xml:"interface"`
+	VLAN          networkVLANBlk `xml:"vlan"`
+	VirtualRouter vrBlk          `xml:"virtual-router"`
+	IKE           ikeBlk         `xml:"ike"`
 }
 
 type ikeBlk struct {
@@ -84,8 +99,11 @@ type ikeVersionBlk struct {
 }
 
 type interfaceBlk struct {
-	Ethernet ethernetBlk `xml:"ethernet"`
-	VLAN     entryList   `xml:"vlan"`
+	Ethernet  ethernetBlk `xml:"ethernet"`
+	Aggregate ethernetBlk `xml:"aggregate-ethernet"`
+	VLAN      unitBlk     `xml:"vlan"`
+	Loopback  unitBlk     `xml:"loopback"`
+	Tunnel    unitBlk     `xml:"tunnel"`
 }
 
 type ethernetBlk struct {
@@ -93,12 +111,52 @@ type ethernetBlk struct {
 }
 
 type ifaceEntry struct {
-	Name   string `xml:"name,attr"`
-	Layer3 layer3 `xml:"layer3"`
+	Name           string    `xml:"name,attr"`
+	Comment        string    `xml:"comment"`
+	LinkState      string    `xml:"link-state"`
+	AggregateGroup string    `xml:"aggregate-group"`
+	Layer3         *layer3   `xml:"layer3"`
+	Layer2         *layer3   `xml:"layer2"`
+	VirtualWire    *layer3   `xml:"virtual-wire"`
+	Tap            *struct{} `xml:"tap"`
+	LACP           struct {
+		Enable string `xml:"enable"`
+	} `xml:"lacp"`
 }
-
+type ipv6Config struct {
+	Enabled string `xml:"enabled"`
+	Address ipBlk  `xml:"address"`
+}
 type layer3 struct {
-	IP ipBlk `xml:"ip"`
+	MTU   string      `xml:"mtu"`
+	IPv6  ipv6Config  `xml:"ipv6"`
+	IP    ipBlk       `xml:"ip"`
+	Units []unitEntry `xml:"units>entry"`
+	DHCP  struct {
+		Enable string `xml:"enable"`
+	} `xml:"dhcp-client"`
+}
+type unitBlk struct {
+	Units []unitEntry `xml:"units>entry"`
+}
+type unitEntry struct {
+	MTU     string     `xml:"mtu"`
+	IPv6    ipv6Config `xml:"ipv6"`
+	Name    string     `xml:"name,attr"`
+	Tag     string     `xml:"tag"`
+	IP      ipBlk      `xml:"ip"`
+	Comment string     `xml:"comment"`
+	DHCP    struct {
+		Enable string `xml:"enable"`
+	} `xml:"dhcp-client"`
+}
+type networkVLANBlk struct {
+	Entries []networkVLANEntry `xml:"entry"`
+}
+type networkVLANEntry struct {
+	Name             string     `xml:"name,attr"`
+	Members          memberList `xml:"interface"`
+	VirtualInterface string     `xml:"virtual-interface>interface"`
 }
 
 type ipBlk struct {
@@ -114,8 +172,9 @@ type vrBlk struct {
 }
 
 type vrEntry struct {
-	Name         string   `xml:"name,attr"`
-	RoutingTable routeTbl `xml:"routing-table"`
+	Interfaces   memberList `xml:"interface"`
+	Name         string     `xml:"name,attr"`
+	RoutingTable routeTbl   `xml:"routing-table"`
 }
 
 type routeTbl struct {
@@ -132,14 +191,20 @@ type staticRouteList struct {
 }
 
 type routeEntry struct {
-	Name        string  `xml:"name,attr"`
-	Destination string  `xml:"destination"`
-	Nexthop     nexthop `xml:"nexthop"`
+	Name          string  `xml:"name,attr"`
+	Destination   string  `xml:"destination"`
+	Nexthop       nexthop `xml:"nexthop"`
+	Interface     string  `xml:"interface"`
+	Metric        string  `xml:"metric"`
+	AdminDistance string  `xml:"admin-dist"`
+	NoInstall     string  `xml:"no-install"`
 }
 
 type nexthop struct {
-	IP     string `xml:"ip-address"`
-	NextVR string `xml:"next-vr"`
+	IP      string    `xml:"ip-address"`
+	IPv6    string    `xml:"ipv6-address"`
+	Discard *struct{} `xml:"discard"`
+	NextVR  string    `xml:"next-vr"`
 }
 
 type vsysBlk struct {
@@ -162,11 +227,12 @@ type addrBlk struct {
 }
 
 type addrEntry struct {
-	Name        string `xml:"name,attr"`
-	IPNetmask   string `xml:"ip-netmask"`
-	FQDN        string `xml:"fqdn"`
-	IPRange     string `xml:"ip-range"`
-	Description string `xml:"description"`
+	Tags        memberList `xml:"tag"`
+	Name        string     `xml:"name,attr"`
+	IPNetmask   string     `xml:"ip-netmask"`
+	FQDN        string     `xml:"fqdn"`
+	IPRange     string     `xml:"ip-range"`
+	Description string     `xml:"description"`
 }
 
 type addrGrpBlk struct {
@@ -174,9 +240,11 @@ type addrGrpBlk struct {
 }
 
 type addrGrpEntry struct {
-	Name        string     `xml:"name,attr"`
-	Static      memberList `xml:"static"`
-	Description string     `xml:"description"`
+	DynamicFilter string     `xml:"dynamic>filter"`
+	Tags          memberList `xml:"tag"`
+	Name          string     `xml:"name,attr"`
+	Static        memberList `xml:"static"`
+	Description   string     `xml:"description"`
 }
 
 type svcBlk struct {
@@ -184,8 +252,10 @@ type svcBlk struct {
 }
 
 type svcEntry struct {
-	Name     string   `xml:"name,attr"`
-	Protocol svcProto `xml:"protocol"`
+	Description string     `xml:"description"`
+	Tags        memberList `xml:"tag"`
+	Name        string     `xml:"name,attr"`
+	Protocol    svcProto   `xml:"protocol"`
 }
 
 type svcProto struct {
@@ -194,7 +264,8 @@ type svcProto struct {
 }
 
 type svcPort struct {
-	Port string `xml:"port"`
+	SourcePort string `xml:"source-port"`
+	Port       string `xml:"port"`
 }
 
 type svcGrpBlk struct {
@@ -202,8 +273,10 @@ type svcGrpBlk struct {
 }
 
 type svcGrpEntry struct {
-	Name    string     `xml:"name,attr"`
-	Members memberList `xml:"members"`
+	Description string     `xml:"description"`
+	Tags        memberList `xml:"tag"`
+	Name        string     `xml:"name,attr"`
+	Members     memberList `xml:"members"`
 }
 
 type entryList struct {
@@ -216,7 +289,10 @@ type zoneEntry struct {
 }
 
 type zoneNetwork struct {
-	Layer3 memberList `xml:"layer3"`
+	Layer3      memberList `xml:"layer3"`
+	Layer2      memberList `xml:"layer2"`
+	VirtualWire memberList `xml:"virtual-wire"`
+	Tap         memberList `xml:"tap"`
 }
 
 type rulebase struct {
@@ -279,18 +355,37 @@ type natRulesList struct {
 }
 
 type ruleEntry struct {
-	Name        string     `xml:"name,attr"`
-	From        memberList `xml:"from"`
-	To          memberList `xml:"to"`
-	Source      memberList `xml:"source"`
-	Destination memberList `xml:"destination"`
-	Service     memberList `xml:"service"`
-	Application memberList `xml:"application"`
-	Action      string     `xml:"action"`
-	Disabled    string     `xml:"disabled"`
-	LogEnd      string     `xml:"log-end"`
+	Description    string         `xml:"description"`
+	Schedule       string         `xml:"schedule"`
+	SourceUsers    memberList     `xml:"source-user"`
+	Categories     memberList     `xml:"category"`
+	Tags           memberList     `xml:"tag"`
+	LogStart       string         `xml:"log-start"`
+	ProfileSetting profileSetting `xml:"profile-setting"`
+	Name           string         `xml:"name,attr"`
+	From           memberList     `xml:"from"`
+	To             memberList     `xml:"to"`
+	Source         memberList     `xml:"source"`
+	Destination    memberList     `xml:"destination"`
+	Service        memberList     `xml:"service"`
+	Application    memberList     `xml:"application"`
+	Action         string         `xml:"action"`
+	Disabled       string         `xml:"disabled"`
+	LogEnd         string         `xml:"log-end"`
 }
 
+type profileSetting struct {
+	Group    memberList `xml:"group"`
+	Profiles struct {
+		Virus         memberList `xml:"virus"`
+		Spyware       memberList `xml:"spyware"`
+		Vulnerability memberList `xml:"vulnerability"`
+		URL           memberList `xml:"url-filtering"`
+		File          memberList `xml:"file-blocking"`
+		WildFire      memberList `xml:"wildfire-analysis"`
+		Data          memberList `xml:"data-filtering"`
+	} `xml:"profiles"`
+}
 type memberList struct {
 	Members []string `xml:"member"`
 }
@@ -304,7 +399,11 @@ type importNet struct {
 }
 
 type shared struct {
-	Application entryList `xml:"application"`
+	Address      addrBlk    `xml:"address"`
+	AddressGroup addrGrpBlk `xml:"address-group"`
+	Service      svcBlk     `xml:"service"`
+	ServiceGroup svcGrpBlk  `xml:"service-group"`
+	Application  entryList  `xml:"application"`
 }
 
 // Parse parses Palo Alto XML export (MVP subset).
@@ -360,49 +459,14 @@ func Parse(content, filename string) (*model.Config, error) {
 	}
 	hints := map[string]ifaceHint{}
 
-	for _, e := range device.Network.Interface.Ethernet.Entries {
-		ip := ""
-		if len(e.Layer3.IP.Entries) > 0 {
-			ip = e.Layer3.IP.Entries[0].Name
-		}
-		cfg.Interfaces = append(cfg.Interfaces, model.Interface{
-			Name:          e.Name,
-			InterfaceType: "physical",
-			IPAddress:     ip,
-			Status:        "up",
-		})
-	}
+	convertSystemSettings(cfg, device.DeviceConfig.System)
+	convertNetworkInterfaces(cfg, device.Network)
+	convertStaticRoutes(cfg, device.Network.VirtualRouter)
 
-	for _, vr := range device.Network.VirtualRouter.Entries {
-		for _, r := range vr.RoutingTable.IP.Static.Entries {
-			gw := r.Nexthop.IP
-			if gw == "" && r.Nexthop.NextVR != "" {
-				gw = "next-vr:" + r.Nexthop.NextVR
-			}
-			cfg.Routes = append(cfg.Routes, model.Route{
-				Name:        r.Name,
-				Destination: r.Destination,
-				Gateway:     gw,
-				VDOM:        vr.Name,
-				Context:     vr.Name,
-				RouteType:   "static",
-				Enabled:     true,
-			})
-		}
-		for _, r := range vr.RoutingTable.IPv6.Static.Entries {
-			cfg.Routes = append(cfg.Routes, model.Route{
-				Name:        r.Name,
-				Destination: r.Destination,
-				RouteType:   "static6",
-				VDOM:        vr.Name,
-				Context:     vr.Name,
-				Enabled:     true,
-			})
-		}
-	}
-
+	convertVsysObjects(cfg, vsysEntry{Name: "shared", Address: root.Shared.Address, AddressGroup: root.Shared.AddressGroup, Service: root.Shared.Service, ServiceGroup: root.Shared.ServiceGroup})
 	var vsysNames []string
 	for _, vs := range device.Vsys.Entries {
+		cfg.VirtualContexts = append(cfg.VirtualContexts, model.VirtualContext{ID: vs.Name, Type: model.ContextVsys})
 		vsysNames = append(vsysNames, vs.Name)
 		for _, m := range vs.Import.Network.Interface.Members {
 			h := hints[m]
@@ -410,7 +474,7 @@ func Parse(content, filename string) (*model.Config, error) {
 			hints[m] = h
 		}
 		for _, z := range vs.Zone.Entries {
-			for _, m := range z.Network.Layer3.Members {
+			for _, m := range zoneMembers(z.Network) {
 				h := hints[m]
 				h.zone = z.Name
 				if h.vdom == "" {
@@ -434,6 +498,14 @@ func Parse(content, filename string) (*model.Config, error) {
 				SourceAddress:        rule.Source.Members,
 				DestinationAddress:   rule.Destination.Members,
 				Service:              rule.Service.Members,
+				Applications:         rule.Application.Members,
+				SourceUsers:          rule.SourceUsers.Members,
+				URLCategories:        rule.Categories.Members,
+				Tags:                 rule.Tags.Members,
+				Description:          rule.Description,
+				Schedule:             rule.Schedule,
+				LogStart:             rule.LogStart == "yes",
+				SecurityProfiles:     securityProfileNames(rule.ProfileSetting),
 				Action:               action,
 				LogEnabled:           rule.LogEnd == "yes",
 				VDOM:                 vs.Name,
@@ -454,6 +526,8 @@ func Parse(content, filename string) (*model.Config, error) {
 		cfg.DeviceInfo.VDOMEnabled = len(vsysNames) > 1
 	}
 
+	applyNetworkContexts(cfg)
+	collectPACoverage(content, cfg)
 	convertIKEGateways(cfg, device)
 
 	if len(root.Shared.Application.Entries) > 0 {
@@ -544,37 +618,37 @@ func convertIKEGateways(cfg *model.Config, device *deviceEntry) {
 func convertVsysObjects(cfg *model.Config, vs vsysEntry) {
 	vdom := vs.Name
 	for _, a := range vs.Address.Entries {
-		addrType, value := "ip-netmask", a.IPNetmask
+		addrType, value := "subnet", util.IPToCIDR(strings.TrimSpace(a.IPNetmask))
 		switch {
 		case a.FQDN != "":
-			addrType, value = "fqdn", a.FQDN
+			addrType, value = "fqdn", strings.TrimSpace(a.FQDN)
 		case a.IPRange != "":
-			addrType, value = "ip-range", a.IPRange
+			addrType, value = "iprange", strings.TrimSpace(a.IPRange)
 		}
 		cfg.Objects.Addresses = append(cfg.Objects.Addresses, model.AddressObject{
-			Name: a.Name, Type: addrType, Value: value, VDOM: vdom, Description: a.Description,
+			Name: a.Name, Type: addrType, Value: value, VDOM: vdom, Description: a.Description, Tags: a.Tags.Members,
 		})
 	}
 	for _, g := range vs.AddressGroup.Entries {
 		cfg.Objects.AddressGroups = append(cfg.Objects.AddressGroups, model.NamedMembers{
-			Name: g.Name, Members: g.Static.Members, VDOM: vdom, Description: g.Description,
+			Name: g.Name, Members: g.Static.Members, VDOM: vdom, Description: g.Description, Tags: g.Tags.Members, DynamicFilter: g.DynamicFilter,
 		})
 	}
 	for _, s := range vs.Service.Entries {
-		proto, port := "", ""
+		proto, port, sourcePort := "", "", ""
 		switch {
 		case s.Protocol.TCP.Port != "":
-			proto, port = "tcp", s.Protocol.TCP.Port
+			proto, port, sourcePort = "TCP", s.Protocol.TCP.Port, s.Protocol.TCP.SourcePort
 		case s.Protocol.UDP.Port != "":
-			proto, port = "udp", s.Protocol.UDP.Port
+			proto, port, sourcePort = "UDP", s.Protocol.UDP.Port, s.Protocol.UDP.SourcePort
 		}
 		cfg.Objects.Services = append(cfg.Objects.Services, model.ServiceObject{
-			Name: s.Name, Protocol: proto, Port: port, VDOM: vdom,
+			Name: s.Name, Protocol: proto, Port: port, VDOM: vdom, SourcePort: sourcePort, Description: s.Description, Tags: s.Tags.Members,
 		})
 	}
 	for _, g := range vs.ServiceGroup.Entries {
 		cfg.Objects.ServiceGroups = append(cfg.Objects.ServiceGroups, model.NamedMembers{
-			Name: g.Name, Members: g.Members.Members, VDOM: vdom,
+			Name: g.Name, Members: g.Members.Members, VDOM: vdom, Description: g.Description, Tags: g.Tags.Members,
 		})
 	}
 }

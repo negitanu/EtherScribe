@@ -85,67 +85,102 @@ func ParseBrace(content string) ([]Statement, []string) {
 	var out []Statement
 	var errs []string
 	var stack [][]string
-	flat := func() []string {
-		var p []string
-		for _, fr := range stack {
-			p = append(p, fr...)
+	var chunk strings.Builder
+	var quote byte
+	escaped, comment, lineComment := false, false, false
+	flatten := func(parts []string) []string {
+		var path []string
+		for _, frame := range stack {
+			path = append(path, frame...)
 		}
-		return p
+		return append(path, parts...)
 	}
-	for _, raw := range strings.Split(content, "\n") {
-		line := strings.TrimSpace(raw)
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "/*") {
-			continue
+	emit := func(delimiter byte) {
+		parts := shellSplit(strings.TrimSpace(chunk.String()))
+		chunk.Reset()
+		off := len(parts) > 0 && parts[0] == "inactive:"
+		if off {
+			parts = parts[1:]
 		}
-		if i := strings.Index(line, "/*"); i >= 0 {
-			line = strings.TrimSpace(line[:i])
-			if line == "" {
-				continue
+		path := flatten(parts)
+		if len(parts) > 0 {
+			out = append(out, Statement{Op: OpSet, Path: path})
+			if off {
+				out = append(out, Statement{Op: OpDeactivate, Path: append([]string{}, path...)})
 			}
 		}
-		// Close braces (possibly multiple on one line)
-		for strings.Contains(line, "}") {
-			before, after, _ := strings.Cut(line, "}")
-			before = strings.TrimSpace(before)
-			if before != "" {
-				// rare: `foo; }` style — emit before closing
-				if strings.HasSuffix(before, ";") {
-					before = strings.TrimSpace(strings.TrimSuffix(before, ";"))
-				}
-				if before != "" && !strings.HasSuffix(before, "{") {
-					parts := shellSplit(before)
-					path := append(flat(), parts...)
-					out = append(out, Statement{Op: OpSet, Path: path, Raw: raw})
-				}
-			}
-			if len(stack) > 0 {
-				stack = stack[:len(stack)-1]
-			} else {
-				errs = append(errs, "brace mismatch: extra }")
-			}
-			line = strings.TrimSpace(after)
-		}
-		if line == "" {
-			continue
-		}
-		if strings.HasSuffix(line, "{") {
-			name := strings.TrimSpace(strings.TrimSuffix(line, "{"))
-			parts := shellSplit(name)
+		switch delimiter {
+		case '{':
 			if len(parts) == 0 {
-				continue
+				errs = append(errs, "brace mismatch: missing hierarchy")
 			}
 			stack = append(stack, parts)
+		case '}':
+			if len(parts) > 0 {
+				errs = append(errs, "brace syntax: missing semicolon")
+			}
+			if len(stack) == 0 {
+				errs = append(errs, "brace mismatch: extra }")
+			} else {
+				stack = stack[:len(stack)-1]
+			}
+		}
+	}
+	for i := 0; i < len(content); i++ {
+		c := content[i]
+		if lineComment {
+			if c == '\n' {
+				lineComment = false
+				chunk.WriteByte(' ')
+			}
 			continue
 		}
-		if strings.HasSuffix(line, ";") {
-			line = strings.TrimSpace(strings.TrimSuffix(line, ";"))
-		}
-		parts := shellSplit(line)
-		if len(parts) == 0 {
+		if comment {
+			if c == '*' && i+1 < len(content) && content[i+1] == '/' {
+				comment = false
+				i++
+				chunk.WriteByte(' ')
+			}
 			continue
 		}
-		path := append(flat(), parts...)
-		out = append(out, Statement{Op: OpSet, Path: path, Raw: raw})
+		if quote != 0 {
+			chunk.WriteByte(c)
+			if escaped {
+				escaped = false
+			} else if c == '\\' {
+				escaped = true
+			} else if c == quote {
+				quote = 0
+			}
+			continue
+		}
+		if c == '#' {
+			lineComment = true
+			continue
+		}
+		if c == '/' && i+1 < len(content) && content[i+1] == '*' {
+			comment = true
+			i++
+			continue
+		}
+		switch c {
+		case '"', '\'':
+			quote = c
+			chunk.WriteByte(c)
+		case '{', '}', ';':
+			emit(c)
+		default:
+			chunk.WriteByte(c)
+		}
+	}
+	if strings.TrimSpace(chunk.String()) != "" {
+		errs = append(errs, "brace syntax: unterminated statement")
+	}
+	if quote != 0 {
+		errs = append(errs, "brace syntax: unclosed quote")
+	}
+	if comment {
+		errs = append(errs, "brace syntax: unclosed comment")
 	}
 	if len(stack) > 0 {
 		errs = append(errs, "brace mismatch: unclosed {")
@@ -157,6 +192,7 @@ func shellSplit(s string) []string {
 	var out []string
 	var cur strings.Builder
 	var quote rune
+	escaped := false
 	flush := func() {
 		if cur.Len() > 0 {
 			out = append(out, cur.String())
@@ -165,6 +201,15 @@ func shellSplit(s string) []string {
 	}
 	for _, r := range s {
 		if quote != 0 {
+			if escaped {
+				cur.WriteRune(r)
+				escaped = false
+				continue
+			}
+			if r == '\\' {
+				escaped = true
+				continue
+			}
 			if r == quote {
 				quote = 0
 			} else {

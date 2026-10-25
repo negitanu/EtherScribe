@@ -1,6 +1,8 @@
 package fortigate
 
 import (
+	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/negitanu/etherscribe/internal/identify"
@@ -84,7 +86,8 @@ func Parse(content, filename string) (*model.Config, error) {
 	convertLogging(cfg, global)
 
 	var vdoms []string
-	for name, raw := range vdomBlock {
+	for _, name := range EditNames(vdomBlock) {
+		raw := vdomBlock[name]
 		if name == "_name" {
 			continue
 		}
@@ -104,6 +107,7 @@ func Parse(content, filename string) (*model.Config, error) {
 		convertBGP(cfg, vn, name)
 		convertPolicyRoutes(cfg, vn, name)
 	}
+	sort.Strings(vdoms)
 	if len(vdoms) > 0 {
 		cfg.DeviceInfo.VDOMList = vdoms
 		cfg.DeviceInfo.VDOMEnabled = true
@@ -116,7 +120,7 @@ func Parse(content, filename string) (*model.Config, error) {
 		"system global": {}, "system dns": {}, "system ntp": {}, "system admin": {},
 		"system interface": {}, "system settings": {}, "system vdom-link": {},
 		"router static": {}, "router static6": {}, "firewall policy": {},
-		"firewall address": {}, "firewall addrgrp": {}, "firewall service custom": {},
+		"firewall address": {}, "firewall address6": {}, "firewall addrgrp6": {}, "firewall addrgrp": {}, "firewall service custom": {},
 		"firewall service group": {}, "firewall vip": {}, "firewall ippool": {},
 		"vpn ipsec phase1-interface": {}, "vpn ipsec phase1": {},
 		"vpn ipsec phase2-interface": {}, "vpn ipsec phase2": {},
@@ -128,13 +132,29 @@ func Parse(content, filename string) (*model.Config, error) {
 		"system dhcp server": {}, "router ospf": {}, "router ospf6": {},
 		"router bgp": {}, "router policy": {},
 	}
-	for key := range global {
-		if _, ok := known[key]; !ok {
-			cfg.Coverage = append(cfg.Coverage, model.CoverageItem{
-				Path:   "global/" + key,
-				Reason: "未対応または部分対応の設定ブロック",
-			})
+	coverageCounts := map[string]int{}
+	inspect := func(scope Node, prefix string) {
+		for key, raw := range scope {
+			if _, ok := raw.(Node); !ok {
+				continue
+			}
+			if _, ok := known[key]; !ok {
+				coverageCounts[prefix+key]++
+			}
 		}
+	}
+	inspect(global, "global/")
+
+	for _, name := range EditNames(vdomBlock) {
+		inspect(vdomBlock.Map(name), "vdom/*/")
+	}
+	paths := make([]string, 0, len(coverageCounts))
+	for path := range coverageCounts {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		cfg.Coverage = append(cfg.Coverage, model.CoverageItem{Path: path, Reason: "未対応または部分対応の設定ブロック", Note: fmt.Sprintf("出現数 %d（設定値は非表示）", coverageCounts[path])})
 	}
 	return cfg, nil
 }
@@ -236,7 +256,8 @@ func convertInterfaces(cfg *model.Config, global Node) {
 	if ifaces == nil {
 		return
 	}
-	for name, raw := range ifaces {
+	for _, name := range EditNames(ifaces) {
+		raw := ifaces[name]
 		if name == "_name" {
 			continue
 		}
@@ -269,9 +290,20 @@ func convertInterfaces(cfg *model.Config, global Node) {
 		if ip := in.String("ip"); ip != "" {
 			iface.IPAddress = util.IPToCIDR(ip)
 		}
+		enrichInterface(cfg, &iface, in)
 		iface.AllowedAccess = in.List("allowaccess")
 		cfg.Interfaces = append(cfg.Interfaces, iface)
 	}
+	for _, lag := range cfg.LAGs {
+		for _, member := range lag.Members {
+			for i := range cfg.Interfaces {
+				if cfg.Interfaces[i].Name == member {
+					cfg.Interfaces[i].LAGParent = lag.Name
+				}
+			}
+		}
+	}
+
 }
 
 func convertRoutes(cfg *model.Config, scope Node, vdom string) {
@@ -280,7 +312,8 @@ func convertRoutes(cfg *model.Config, scope Node, vdom string) {
 		if routes == nil {
 			return
 		}
-		for id, raw := range routes {
+		for _, id := range EditNames(routes) {
+			raw := routes[id]
 			if id == "_name" {
 				continue
 			}
@@ -299,6 +332,21 @@ func convertRoutes(cfg *model.Config, scope Node, vdom string) {
 				RouteType:   routeType,
 				Enabled:     rn.String("status") != "disable",
 			}
+			r.RoutingContext = rn.String("vrf")
+			r.DestinationObject = rn.String("dstaddr")
+			r.Priority = rn.String("priority")
+			r.Description = rn.String("comment")
+			r.Action = "forward"
+			if rn.String("blackhole") == "enable" {
+				r.Action = "discard"
+			}
+			if r.Destination == "" && r.DestinationObject == "" {
+				if section == "router static6" {
+					r.Destination = "::/0"
+				} else {
+					r.Destination = "0.0.0.0/0"
+				}
+			}
 			cfg.Routes = append(cfg.Routes, r)
 		}
 	}
@@ -311,7 +359,8 @@ func convertPolicies(cfg *model.Config, scope Node, vdom string) {
 	if policies == nil {
 		return
 	}
-	for id, raw := range policies {
+	for _, id := range EditNames(policies) {
+		raw := policies[id]
 		if id == "_name" {
 			continue
 		}
@@ -330,6 +379,7 @@ func convertPolicies(cfg *model.Config, scope Node, vdom string) {
 			Service:              pn.List("service"),
 			Action:               parseAction(pn.String("action")),
 			NATEnabled:           pn.String("nat") == "enable",
+			LogStart:             pn.String("logtraffic-start") == "enable",
 			LogEnabled:           log == "enable" || log == "all" || log == "utm",
 			SecurityProfiles:     extractSecurityProfiles(pn),
 			VDOM:                 vdom,

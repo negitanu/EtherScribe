@@ -20,7 +20,7 @@ EtherScribe が対象とする Juniper EX シリーズ設定の範囲。公式 C
 | STP | `protocols rstp` / `mstp` / `vstp` |
 | 経路 | `routing-options static route` |
 | VRF | `routing-instances <name>`（interface / static / protocols） |
-| BGP | `protocols bgp`（local-as / neighbor） |
+| BGP | `routing-options autonomous-system` と `protocols bgp`（global/group/neighbor 継承） |
 
 ## 非対応（coverage）
 
@@ -33,3 +33,7 @@ EtherScribe が対象とする Juniper EX シリーズ設定の範囲。公式 C
 
 - `core/testdata/junos-ex-els.set`
 - `core/testdata/junos-ex-els.conf`
+
+## 公式リファレンスに基づく精度改善
+
+詳細は [official-parser-grounding.md](official-parser-grounding.md)。複数 IPv4/IPv6、LACP 明示設定、BGP の AS 分離と継承、静的ルートの属性統合と qualified-next-hop、inet6.0、compact brace と inactive を合成回帰で検証する。`groups` / `apply-groups` は展開しない。

@@ -1,0 +1,15 @@
+# Model: EX4300-48T; independent synthetic display set equivalent
+set system host-name COMPACT-EX
+set interfaces ge-0/0/0 ether-options 802.3ad ae0
+set interfaces ae0 unit 0 family ethernet-switching interface-mode trunk
+set interfaces ae0 unit 0 family ethernet-switching vlan members [ BLUE GREEN ]
+set routing-options autonomous-system 64512
+set routing-options static route 203.0.113.0/24 next-hop [ 192.0.2.2 192.0.2.3 ]
+set routing-options static route 203.0.113.0/24 preference 8
+set routing-options rib inet6.0 static route 2001:db8:30::/64 next-hop 2001:db8::2
+set routing-options rib inet6.0 static route 2001:db8:30::/64 preference 9
+set protocols bgp group WAN peer-as 64513
+set protocols bgp group WAN neighbor 203.0.113.2 description "edge; {test} \"quoted\" # literal"
+set protocols bgp group OFF peer-as 64514
+set protocols bgp group OFF neighbor 203.0.113.4
+deactivate protocols bgp group OFF

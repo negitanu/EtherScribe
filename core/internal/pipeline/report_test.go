@@ -10,7 +10,7 @@ import (
 )
 
 func TestReadableReportParity(t *testing.T) {
-	for _, fixture := range []string{"fortigate-essence.conf", "paloalto-vsys.xml", "junos-ex-els.set"} {
+	for _, fixture := range []string{"fortigate-essence.conf", "paloalto-vsys.xml", "junos-ex-els.set", "fortigate-object-parity.conf", "paloalto-object-parity.xml", "fortigate-vdom-boundaries.conf", "paloalto-network-ops.xml"} {
 		t.Run(fixture, func(t *testing.T) {
 			for _, format := range []string{"html", "excel"} {
 				res, err := ConvertFile(ConvertRequest{Path: testdata(fixture), Format: format, Preset: "all"})

@@ -30,3 +30,7 @@ Electron Main と Go エンジン（`etherscribe rpc`）は **stdio 上の JSON-
 renderer は `sections.list` の `presets` / `sections` を表示し、`convert:run` に `path`, `format`, `preset`, `sections` を渡す。明示的なセクション選択はプリセットより優先する。空選択は GUI で実行不可とする。
 
 生成・差分の成功応答は `outputPath`, `format`, `summary`。保存ダイアログの取消は `{cancelled: true}`。HTML プレビューの読み取りは同一アプリセッション内で生成した HTML パスに限定し、renderer の iframe は sandbox を使用する。
+
+## ネットワークモデルの加算項目
+
+既存メソッドと schemaVersion は維持する。IF に `addresses`、`ipv6Enabled`（明示時のみ）、`mtu`、`routingContext`、経路に `priority` / `action` / `description` / `destinationObject` / `routingContext`、BGP peer に `group` / `localAs` / `importPolicies` / `exportPolicies` を追加。詳細と公式出典は [公式リファレンス対照](reference/official-parser-grounding.md) を参照。

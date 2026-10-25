@@ -3,6 +3,7 @@ package junos
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -65,4 +66,18 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func TestMalformedBraceDiagnosticsExcludeValues(t *testing.T) {
+	for _, input := range []string{`system { host-name "SECRET-MARKER`, `system { /* SECRET-MARKER`, `system { host-name SECRET-MARKER;`, `}`} {
+		_, errs := ParseBrace(input)
+		if len(errs) == 0 {
+			t.Fatal("malformed config accepted")
+		}
+		for _, err := range errs {
+			if strings.Contains(err, "SECRET-MARKER") {
+				t.Fatal("configuration value in diagnostics")
+			}
+		}
+	}
 }

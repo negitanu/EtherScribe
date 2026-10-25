@@ -1,6 +1,7 @@
 package fortigate
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/negitanu/etherscribe/internal/model"
@@ -8,84 +9,76 @@ import (
 )
 
 // convertObjects ports WallScribe converters/objects.py (address/service + groups).
+func objectNames(n Node) []string {
+	names := make([]string, 0, len(n))
+	for name, raw := range n {
+		if _, ok := raw.(Node); ok && name != "_name" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+func objectTags(n Node) []string { return uniqueAppend(n.List("tag"), n.List("tags")) }
 func convertObjects(cfg *model.Config, scope Node, vdom string) {
-	if addrs := scope.Map("firewall address"); addrs != nil {
-		for name, raw := range addrs {
-			if name == "_name" {
-				continue
-			}
-			an, ok := raw.(Node)
-			if !ok {
-				continue
-			}
-			addrType := an.String("type")
-			if addrType == "" {
-				addrType = "subnet"
-			}
-			var value string
-			switch addrType {
+	for _, block := range []string{"firewall address", "firewall address6"} {
+		addrs := scope.Map(block)
+		for _, name := range objectNames(addrs) {
+			an := addrs.Map(name)
+			kind := firstNonEmpty(an.String("type"), "subnet")
+			value := ""
+			switch kind {
 			case "fqdn":
 				value = an.String("fqdn")
 			case "iprange":
-				start, end := an.String("start-ip"), an.String("end-ip")
+				start, end := firstNonEmpty(an.String("start-ip6"), an.String("start-ip")), firstNonEmpty(an.String("end-ip6"), an.String("end-ip"))
 				if start != "" && end != "" {
 					value = start + "-" + end
 				}
 			default:
-				if subnet := an.String("subnet"); subnet != "" {
-					value = util.IPToCIDR(subnet)
-				}
+				value = util.IPToCIDR(firstNonEmpty(an.String("ip6"), an.String("subnet"), an.String("agent-id")))
 			}
-			cfg.Objects.Addresses = append(cfg.Objects.Addresses, model.AddressObject{
-				Name: firstNonEmpty(an.String("_name"), name), Type: addrType, Value: value,
-				VDOM: vdom, Description: an.String("comment"),
-			})
+			cfg.Objects.Addresses = append(cfg.Objects.Addresses, model.AddressObject{Name: firstNonEmpty(an.String("_name"), name), Type: kind, Value: value, VDOM: vdom, Description: an.String("comment"), Tags: objectTags(an)})
 		}
 	}
-	if grps := scope.Map("firewall addrgrp"); grps != nil {
-		for name, raw := range grps {
-			if name == "_name" {
-				continue
-			}
-			gn, ok := raw.(Node)
-			if !ok {
-				continue
-			}
-			cfg.Objects.AddressGroups = append(cfg.Objects.AddressGroups, model.NamedMembers{
-				Name: firstNonEmpty(gn.String("_name"), name), Members: gn.List("member"),
-				VDOM: vdom, Description: gn.String("comment"),
-			})
+	for _, block := range []string{"firewall addrgrp", "firewall addrgrp6"} {
+		groups := scope.Map(block)
+		for _, name := range objectNames(groups) {
+			gn := groups.Map(name)
+			cfg.Objects.AddressGroups = append(cfg.Objects.AddressGroups, model.NamedMembers{Name: firstNonEmpty(gn.String("_name"), name), Members: gn.List("member"), VDOM: vdom, Description: gn.String("comment"), Tags: objectTags(gn)})
 		}
 	}
-	if svcs := scope.Map("firewall service custom"); svcs != nil {
-		for name, raw := range svcs {
-			if name == "_name" {
-				continue
+	services := scope.Map("firewall service custom")
+	for _, name := range objectNames(services) {
+		sn := services.Map(name)
+		ports := []string{strings.Join(sn.List("tcp-portrange"), ", "), strings.Join(sn.List("udp-portrange"), ", "), strings.Join(sn.List("sctp-portrange"), ", ")}
+		var protocols, values []string
+		for i, p := range ports {
+			if p != "" {
+				protocols = append(protocols, []string{"TCP", "UDP", "SCTP"}[i])
+				values = uniqueAppend(values, []string{p})
 			}
-			sn, ok := raw.(Node)
-			if !ok {
-				continue
-			}
-			cfg.Objects.Services = append(cfg.Objects.Services, model.ServiceObject{
-				Name: firstNonEmpty(sn.String("_name"), name), Protocol: sn.String("protocol"),
-				Port: firstNonEmpty(sn.String("tcp-portrange"), sn.String("udp-portrange")),
-				VDOM: vdom,
-			})
 		}
+		var icmp []string
+		if v := sn.String("icmptype"); v != "" {
+			icmp = append(icmp, "type="+v)
+		}
+		if v := sn.String("icmpcode"); v != "" {
+			icmp = append(icmp, "code="+v)
+		}
+		if len(icmp) > 0 {
+			protocols = append(protocols, "ICMP")
+			values = append(values, strings.Join(icmp, ","))
+		}
+		if len(protocols) == 0 {
+			protocols = []string{firstNonEmpty(strings.ToUpper(sn.String("protocol")), "IP")}
+		}
+		cfg.Objects.Services = append(cfg.Objects.Services, model.ServiceObject{Name: firstNonEmpty(sn.String("_name"), name), Protocol: strings.Join(protocols, "/"), Port: strings.Join(values, ", "), TCPPort: ports[0], UDPPort: ports[1], SCTPPort: ports[2], VDOM: vdom, Description: sn.String("comment"), Tags: objectTags(sn)})
 	}
-	if sgrps := scope.Map("firewall service group"); sgrps != nil {
-		for name, raw := range sgrps {
-			if name == "_name" {
-				continue
-			}
-			gn, ok := raw.(Node)
-			if !ok {
-				continue
-			}
-			cfg.Objects.ServiceGroups = append(cfg.Objects.ServiceGroups, model.NamedMembers{
-				Name: firstNonEmpty(gn.String("_name"), name), Members: gn.List("member"), VDOM: vdom,
-			})
-		}
+	groups := scope.Map("firewall service group")
+	for _, name := range objectNames(groups) {
+		gn := groups.Map(name)
+		cfg.Objects.ServiceGroups = append(cfg.Objects.ServiceGroups, model.NamedMembers{Name: firstNonEmpty(gn.String("_name"), name), Members: gn.List("member"), VDOM: vdom, Description: gn.String("comment"), Tags: objectTags(gn)})
 	}
 }
 

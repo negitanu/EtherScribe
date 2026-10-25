@@ -1,0 +1,33 @@
+<config version="11.0.0"><devices><entry name="localhost.localdomain">
+ <deviceconfig><system>
+  <hostname>PA-NETWORK-LAB</hostname><ip-address>192.0.2.10</ip-address><netmask>255.255.255.0</netmask><default-gateway>192.0.2.1</default-gateway><domain>example.test</domain><timezone>Asia/Tokyo</timezone>
+  <dns-setting><servers><primary>192.0.2.53</primary><secondary>198.51.100.53</secondary></servers></dns-setting>
+  <ntp-servers><primary-ntp-server><ntp-server-address>ntp1.example.test</ntp-server-address></primary-ntp-server><secondary-ntp-server><ntp-server-address>ntp2.example.test</ntp-server-address></secondary-ntp-server></ntp-servers>
+  <update-server>updates.example.test</update-server>
+ </system></deviceconfig>
+ <network>
+  <interface>
+   <ethernet>
+    <entry name="ethernet1/1"><aggregate-group>ae1</aggregate-group></entry>
+    <entry name="ethernet1/2"><aggregate-group>ae1</aggregate-group><link-state>down</link-state></entry>
+    <entry name="ethernet1/3"><tap/></entry>
+    <entry name="ethernet1/4"><layer3><ip><entry name="198.51.100.1/24"/><entry name="198.51.100.2/24"/></ip><units><entry name="ethernet1/4.20"><tag>20</tag><ip><entry name="203.0.113.1/24"/></ip><comment>サブ IF</comment></entry></units></layer3></entry>
+    <entry name="ethernet1/5"><virtual-wire/></entry>
+   </ethernet>
+   <aggregate-ethernet><entry name="ae1"><layer2><units><entry name="ae1.10"><tag>10</tag></entry></units></layer2><lacp><enable>yes</enable></lacp><comment>L2 集約</comment></entry></aggregate-ethernet>
+   <vlan><units><entry name="vlan.10"><ip><entry name="192.0.2.1/24"/></ip></entry><entry name="vlan.30"><dhcp-client><enable>yes</enable></dhcp-client></entry></units></vlan>
+   <loopback><units><entry name="loopback.1"><ip><entry name="203.0.113.100/32"/></ip></entry></units></loopback>
+   <tunnel><units><entry name="tunnel.1"><ip><entry name="192.0.2.250/30"/></ip></entry></units></tunnel>
+  </interface>
+  <vlan><entry name="LAB-VLAN"><interface><member>ae1.10</member></interface><virtual-interface><interface>vlan.10</interface></virtual-interface></entry></vlan>
+  <virtual-router><entry name="VR-LAB"><routing-table>
+   <ip><static-route><entry name="IPv4 route"><destination>10.0.0.0/8</destination><interface>vlan.10</interface><metric>15</metric><nexthop><ip-address>192.0.2.254</ip-address></nexthop></entry></static-route></ip>
+   <ipv6><static-route><entry name="IPv6 route"><destination>2001:db8:100::/48</destination><interface>tunnel.1</interface><metric>20</metric><nexthop><ipv6-address>2001:db8::1</ipv6-address></nexthop></entry><entry name="IPv6 discard"><destination>2001:db8:dead::/48</destination><nexthop><discard/></nexthop><no-install>yes</no-install></entry></static-route></ipv6>
+  </routing-table><protocol><bgp><enable>yes</enable></bgp></protocol></entry></virtual-router>
+ </network>
+ <vsys><entry name="vsys1">
+  <import><network><interface><member>ae1</member><member>ae1.10</member><member>vlan.10</member><member>ethernet1/4</member><member>ethernet1/4.20</member></interface></network></import>
+  <zone><entry name="L2-LAB"><network><layer2><member>ae1.10</member></layer2></network></entry><entry name="L3-LAB"><network><layer3><member>vlan.10</member><member>ethernet1/4.20</member></layer3></network></entry></zone>
+  <rulebase><security><rules><entry name="Web Rule"><from><member>L3-LAB</member></from><to><member>any</member></to><source><member>any</member></source><destination><member>any</member></destination><application><member>web-browsing</member><member>ssl</member></application><service><member>application-default</member></service><source-user><member>known-user</member></source-user><category><member>business-and-economy</member></category><tag><member>lab</member></tag><profile-setting><profiles><virus><member>AV-LAB</member></virus><vulnerability><member>IPS-LAB</member></vulnerability></profiles></profile-setting><action>allow</action><log-start>yes</log-start><log-end>yes</log-end><schedule>business-hours</schedule><description>アプリベースの合成ルール</description><source-hip><member>UNMODELED-HIP-LAB</member></source-hip></entry></rules></security></rulebase>
+ </entry></vsys>
+</entry></devices></config>

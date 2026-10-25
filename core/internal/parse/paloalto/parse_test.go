@@ -26,7 +26,7 @@ func TestParseVsysObjects(t *testing.T) {
 		vdom[a.Name] = a.VDOM
 		kind[a.Name] = a.Type
 	}
-	if byName["LAN"] != "10.0.0.0/24" || vdom["LAN"] != "vsys1" || kind["LAN"] != "ip-netmask" {
+	if byName["LAN"] != "10.0.0.0/24" || vdom["LAN"] != "vsys1" || kind["LAN"] != "subnet" {
 		t.Fatalf("LAN value=%q vdom=%q type=%q", byName["LAN"], vdom["LAN"], kind["LAN"])
 	}
 	if kind["WEB"] != "fqdn" || byName["WEB"] != "www.example.com" || vdom["WEB"] != "vsys1" {
@@ -39,7 +39,7 @@ func TestParseVsysObjects(t *testing.T) {
 		len(cfg.Objects.AddressGroups[0].Members) != 1 || cfg.Objects.AddressGroups[0].Members[0] != "LAN" {
 		t.Fatalf("groups=%+v", cfg.Objects.AddressGroups)
 	}
-	if len(cfg.Objects.Services) != 1 || cfg.Objects.Services[0].Protocol != "tcp" || cfg.Objects.Services[0].Port != "8080" {
+	if len(cfg.Objects.Services) != 1 || cfg.Objects.Services[0].Protocol != "TCP" || cfg.Objects.Services[0].Port != "8080" {
 		t.Fatalf("services=%+v", cfg.Objects.Services)
 	}
 	if len(cfg.Objects.ServiceGroups) != 1 || cfg.Objects.ServiceGroups[0].Members[0] != "HTTP-ALT" {

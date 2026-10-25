@@ -1,0 +1,20 @@
+<config version="11.1.0">
+ <devices><entry name="localhost.localdomain">
+  <deviceconfig><system><hostname>GROUNDED-PA</hostname></system></deviceconfig>
+  <network>
+   <interface>
+    <ethernet><entry name="ethernet1/1"><layer3>
+     <mtu>9000</mtu><ip><entry name="192.0.2.1/24"/></ip>
+     <ipv6><enabled>yes</enabled><address><entry name="2001:db8:10::1/64"/></address></ipv6>
+     <units><entry name="ethernet1/1.10"><tag>10</tag><mtu>1500</mtu><ipv6><enabled>yes</enabled><address><entry name="2001:db8:20::1/64"/></address></ipv6></entry></units>
+    </layer3></entry></ethernet>
+    <loopback><units><entry name="loopback.1"><ipv6><enabled>yes</enabled><address><entry name="2001:db8::1/128"/></address></ipv6></entry></units></loopback>
+   </interface>
+   <virtual-router><entry name="VR-BLUE">
+    <interface><member>ethernet1/1</member><member>ethernet1/1.10</member><member>loopback.1</member></interface>
+    <routing-table><ipv6><static-route><entry name="v6-backup"><destination>::/0</destination><nexthop><ipv6-address>2001:db8:10::fe</ipv6-address></nexthop><interface>ethernet1/1</interface><metric>30</metric><admin-dist>20</admin-dist></entry></static-route></ipv6></routing-table>
+   </entry></virtual-router>
+  </network>
+  <vsys><entry name="vsys1"><import><network><interface><member>ethernet1/1</member><member>ethernet1/1.10</member><member>loopback.1</member></interface></network></import></entry></vsys>
+ </entry></devices>
+</config>

@@ -28,3 +28,7 @@
 実行: `cd core && go test ./...`。対応する 3 件について意味と件数を確認し、JSON / HTML / Excel の生成を検証する。
 
 今後の拡張候補: Junos brace/set 同値、apply-groups / deactivate / delete、FortiOS rename / unset / append / move、不正終端、PAN-OS Panorama 継承・CLI 対応、Cisco IOS/NX-OS のモデル化。上流ファイルが存在することと、本ツールが対応することは別として管理する。
+
+## 公式リファレンスに基づく追加回帰
+
+`core/testdata/grounded-*` と `core/internal/pipeline/grounded_network_test.go` に複数 IP、BGP 継承、qualified-next-hop、LACP、IPv6、brace/set 同値を追加。出典と対応範囲は [公式対照記録](../docs/reference/official-parser-grounding.md) を参照。

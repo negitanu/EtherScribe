@@ -1,12 +1,15 @@
 package fortigate
 
 import (
+	"sort"
 	"strings"
 	"unicode"
 )
 
 // Node is a nested FortiGate config tree (dict-like).
 type Node map[string]any
+
+const editOrderKey = "\x00edit-order"
 
 func (n Node) Map(key string) Node {
 	v, ok := n[key]
@@ -60,12 +63,12 @@ func (n Node) List(key string) []string {
 func ParseLines(lines []string) (Node, []string) {
 	var errors []string
 	root := Node{}
-	_, errs := parseTree(lines, 0, "", root, &errors)
+	_, errs := parseTree(lines, 0, "", root, false, &errors)
 	_ = errs
 	return root, errors
 }
 
-func parseTree(lines []string, i int, terminator string, result Node, errors *[]string) (int, Node) {
+func parseTree(lines []string, i int, terminator string, result Node, implicitVDOMEnd bool, errors *[]string) (int, Node) {
 	for i < len(lines) {
 		line := lines[i]
 		i++
@@ -96,13 +99,19 @@ func parseTree(lines []string, i int, terminator string, result Node, errors *[]
 				result[name] = child
 			}
 			var sub Node
-			i, sub = parseTree(lines, i, "end", child, errors)
+			i, sub = parseTree(lines, i, "end", child, name == "vdom", errors)
 			result[name] = sub
 		case "edit":
-			name := unquote(firstToken(rest))
-			child := Node{}
+			name := firstToken(rest)
+			if result.Map(name) == nil {
+				result[editOrderKey] = append(toStringSlice(result[editOrderKey]), name)
+			}
+			child := result.Map(name)
+			if child == nil {
+				child = Node{}
+			}
 			var sub Node
-			i, sub = parseTree(lines, i, "next", child, errors)
+			i, sub = parseTree(lines, i, "next", child, implicitVDOMEnd, errors)
 			sub["_name"] = name
 			result[name] = sub
 		case "set":
@@ -127,6 +136,9 @@ func parseTree(lines []string, i int, terminator string, result Node, errors *[]
 				result[key] = filterOut(existing, values)
 			}
 		case "next", "end":
+			if cmd == "end" && terminator == "next" && implicitVDOMEnd {
+				return i - 1, result
+			}
 			if cmd != terminator {
 				*errors = append(*errors, "FortiGate設定のブロック終端が不正です: "+cmd)
 			}
@@ -143,22 +155,19 @@ func parseTree(lines []string, i int, terminator string, result Node, errors *[]
 
 func splitKeyValue(s string) (string, string) {
 	s = strings.TrimSpace(s)
-	if s == "" {
-		return "", ""
+	i := strings.IndexFunc(s, unicode.IsSpace)
+	if i < 0 {
+		return s, ""
 	}
-	parts := strings.SplitN(s, " ", 2)
-	if len(parts) == 1 {
-		return parts[0], ""
-	}
-	return parts[0], strings.TrimSpace(parts[1])
+	return s[:i], strings.TrimSpace(s[i:])
 }
 
 func firstToken(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
+	tokens := shellSplit(s)
+	if len(tokens) == 0 {
 		return ""
 	}
-	return strings.Fields(s)[0]
+	return tokens[0]
 }
 
 func parseValue(value string) any {
@@ -181,21 +190,26 @@ func shellSplit(s string) []string {
 	var out []string
 	var cur strings.Builder
 	var quote rune
-	escaped := false
+	escaped, started := false, false
 	flush := func() {
-		if cur.Len() > 0 || quote != 0 {
+		if started {
 			out = append(out, cur.String())
 			cur.Reset()
+			started = false
 		}
 	}
 	for _, r := range s {
 		if escaped {
-			cur.WriteRune(r)
+			if r != '\n' {
+				cur.WriteRune(r)
+			}
 			escaped = false
+			started = true
 			continue
 		}
 		if r == '\\' && quote != '\'' {
 			escaped = true
+			started = true
 			continue
 		}
 		if quote != 0 {
@@ -206,32 +220,23 @@ func shellSplit(s string) []string {
 			}
 			continue
 		}
-		switch r {
-		case '\'', '"':
+		if r == '\'' || r == '"' {
 			quote = r
-		case ' ', '\t':
-			if cur.Len() > 0 {
-				out = append(out, cur.String())
-				cur.Reset()
-			}
-		default:
-			cur.WriteRune(r)
+			started = true
+			continue
 		}
+		if unicode.IsSpace(r) {
+			flush()
+			continue
+		}
+		cur.WriteRune(r)
+		started = true
 	}
-	if cur.Len() > 0 {
-		out = append(out, cur.String())
+	if escaped {
+		cur.WriteRune('\\')
 	}
-	_ = flush
+	flush()
 	return out
-}
-
-func unquote(s string) string {
-	if len(s) >= 2 {
-		if (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '\'' && s[len(s)-1] == '\'') {
-			return s[1 : len(s)-1]
-		}
-	}
-	return s
 }
 
 func toStringSlice(v any) []string {
@@ -338,4 +343,24 @@ func SeparateLogicalLines(content string) ([]string, []string) {
 		errors = append(errors, "FortiGate設定に閉じていない引用符があります")
 	}
 	return lines, errors
+}
+
+// EditNames retains device evaluation order. Map-only nodes have a deterministic fallback.
+func EditNames(n Node) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, name := range toStringSlice(n[editOrderKey]) {
+		if n.Map(name) != nil && !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	var rest []string
+	for name, raw := range n {
+		if _, ok := raw.(Node); ok && !seen[name] {
+			rest = append(rest, name)
+		}
+	}
+	sort.Strings(rest)
+	return append(names, rest...)
 }

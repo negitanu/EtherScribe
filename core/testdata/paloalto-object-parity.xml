@@ -1,0 +1,27 @@
+<config version="11.0.0">
+ <shared>
+  <address>
+   <entry name="Shared LAN"><ip-netmask>192.0.2.0/24</ip-netmask><description>共有の説明</description><tag><member>共有 タグ</member></tag></entry>
+   <entry name="Shared Range"><ip-range>198.51.100.10-198.51.100.20</ip-range></entry>
+  </address>
+  <address-group><entry name="Shared Group"><static><member>Shared LAN</member><member>Shared Range</member></static><description>共有グループ</description></entry></address-group>
+  <service><entry name="Shared DNS"><protocol><udp><port>53</port><source-port>1024-65535</source-port></udp></protocol><description>共有 UDP</description><tag><member>DNS</member></tag></entry></service>
+  <service-group><entry name="Shared Services"><members><member>Shared DNS</member></members><description>共有サービスグループ</description></entry></service-group>
+ </shared>
+ <devices><entry name="localhost.localdomain">
+  <deviceconfig><system><hostname>PA-OBJECT-LAB</hostname></system></deviceconfig>
+  <vsys>
+   <entry name="vsys1">
+    <address>
+     <entry name="Shared LAN"><ip-netmask>203.0.113.0/24</ip-netmask><description>ローカルの同名定義</description></entry>
+     <entry name="Web Server"><fqdn> www.example.com </fqdn></entry>
+     <entry name="IPv6 LAN"><ip-netmask>2001:db8:1::/64</ip-netmask></entry>
+    </address>
+    <address-group><entry name="Dynamic Group"><dynamic><filter>'production' and 'web'</filter></dynamic><description>動的グループの説明</description><tag><member>自動</member></tag></entry></address-group>
+    <service><entry name="Web TLS"><protocol><tcp><port>443,8443</port><source-port>1024-65535</source-port></tcp></protocol><description>TLS の説明</description><tag><member>Web</member></tag></entry></service>
+    <service-group><entry name="Web Services"><members><member>Web TLS</member><member>Shared DNS</member></members><description>Web グループ</description></entry></service-group>
+   </entry>
+   <entry name="vsys2"><address><entry name="Shared LAN"><ip-netmask>10.0.0.0/24</ip-netmask></entry></address></entry>
+  </vsys>
+ </entry></devices>
+</config>

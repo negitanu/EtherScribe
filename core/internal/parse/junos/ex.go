@@ -1,6 +1,7 @@
 package junos
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/negitanu/etherscribe/internal/identify"
@@ -57,10 +58,10 @@ func ParseEX(content, filename string) (*model.Config, error) {
 		return i
 	}
 
-	for _, st := range stmts {
+	for _, st := range effectiveStatements(stmts) {
 		if st.Op == OpDelete {
 			cfg.Coverage = append(cfg.Coverage, model.CoverageItem{
-				Path: strings.Join(st.Path, " "), Reason: "delete 文はモデルへ未適用",
+				Path: "delete", Reason: "delete 文はモデルへ未適用",
 			})
 			continue
 		}
@@ -94,14 +95,16 @@ func ParseEX(content, filename string) (*model.Config, error) {
 		case PathHas(st, "routing-instances"):
 			mapRoutingInstance(st, cfg, contexts, ensureIface)
 		case PathHas(st, "routing-options", "static", "route"):
-			mapStaticRoute(st, cfg, model.DefaultContext)
+			// Static routes are assembled across statements below.
 		case PathHas(st, "protocols", "ospf"):
 			mapOSPF(st, cfg, model.DefaultContext)
 		case PathHas(st, "protocols", "bgp"):
-			mapBGP(st, cfg, model.DefaultContext)
+			// BGP inheritance is resolved after collecting all statements.
 		}
 	}
 
+	collectRouting(stmts, cfg)
+	finalizeInterfaces(stmts, ifaces, lags)
 	for _, i := range ifaces {
 		cfg.Interfaces = append(cfg.Interfaces, *i)
 	}
@@ -119,7 +122,7 @@ func ParseEX(content, filename string) (*model.Config, error) {
 	knownTop := map[string]struct{}{
 		"system": {}, "interfaces": {}, "vlans": {}, "protocols": {},
 		"routing-options": {}, "routing-instances": {}, "version": {},
-		"snmp": {}, "chassis": {}, "groups": {}, "apply-groups": {},
+		"snmp": {}, "chassis": {},
 	}
 	for top := range seenTop {
 		if _, ok := knownTop[top]; !ok {
@@ -128,6 +131,11 @@ func ParseEX(content, filename string) (*model.Config, error) {
 			})
 		}
 	}
+	sort.Slice(cfg.Coverage, func(i, j int) bool { return cfg.Coverage[i].Path < cfg.Coverage[j].Path })
+	sort.Slice(cfg.Interfaces, func(i, j int) bool { return cfg.Interfaces[i].Name < cfg.Interfaces[j].Name })
+	sort.Slice(cfg.VLANs, func(i, j int) bool { return cfg.VLANs[i].Name < cfg.VLANs[j].Name })
+	sort.Slice(cfg.LAGs, func(i, j int) bool { return cfg.LAGs[i].Name < cfg.LAGs[j].Name })
+	sort.Slice(cfg.VirtualContexts, func(i, j int) bool { return cfg.VirtualContexts[i].ID < cfg.VirtualContexts[j].ID })
 	return cfg, nil
 }
 
@@ -142,7 +150,7 @@ func mapInterface(st Statement, ensure func(string) *model.Interface, lags map[s
 		name = "irb." + st.Path[3]
 	}
 	iface := ensure(name)
-	if st.Op == OpDeactivate {
+	if st.Op == OpDeactivate && len(st.Path) == 2 {
 		iface.Status = "down"
 	}
 	base := st.Path[1]
@@ -181,8 +189,12 @@ func mapInterface(st Statement, ensure func(string) *model.Interface, lags map[s
 		return
 	}
 	// interfaces <if> unit <u> family inet address x/y  (also irb)
-	if len(st.Path) >= unitIdx+6 && st.Path[unitIdx] == "unit" && st.Path[unitIdx+2] == "family" && st.Path[unitIdx+3] == "inet" && st.Path[unitIdx+4] == "address" {
-		iface.IPAddress = st.Path[unitIdx+5]
+	if len(st.Path) >= unitIdx+6 && st.Path[unitIdx] == "unit" && st.Path[unitIdx+2] == "family" && (st.Path[unitIdx+3] == "inet" || st.Path[unitIdx+3] == "inet6") && st.Path[unitIdx+4] == "address" {
+		iface.Addresses = appendUnique(iface.Addresses, st.Path[unitIdx+5])
+		if iface.IPAddress == "" {
+			iface.IPAddress = st.Path[unitIdx+5]
+		}
+		iface.AddressMode = "static"
 		if iface.InterfaceType == "physical" {
 			iface.InterfaceType = "l3"
 		}
@@ -194,7 +206,7 @@ func mapInterface(st Statement, ensure func(string) *model.Interface, lags map[s
 		iface.LAGParent = ae
 		lag := lags[ae]
 		if lag == nil {
-			lag = &model.LAG{Name: ae, LACPEnabled: true, Context: model.DefaultContext}
+			lag = &model.LAG{Name: ae, LACPEnabled: false, Context: model.DefaultContext}
 			lags[ae] = lag
 		}
 		lag.Members = appendUnique(lag.Members, name)
@@ -206,7 +218,7 @@ func mapInterface(st Statement, ensure func(string) *model.Interface, lags map[s
 		iface.LAGParent = ae
 		lag := lags[ae]
 		if lag == nil {
-			lag = &model.LAG{Name: ae, LACPEnabled: true, Context: model.DefaultContext}
+			lag = &model.LAG{Name: ae, LACPEnabled: false, Context: model.DefaultContext}
 			lags[ae] = lag
 		}
 		lag.Members = appendUnique(lag.Members, name)
@@ -270,43 +282,9 @@ func mapRoutingInstance(st Statement, cfg *model.Config, contexts map[string]mod
 		iface := ensure(st.Path[3])
 		iface.Context = name
 	}
-	// routing-instances <name> routing-options static route …
-	if len(st.Path) >= 6 && st.Path[2] == "routing-options" && st.Path[3] == "static" && st.Path[4] == "route" {
-		sub := Statement{Op: st.Op, Path: append([]string{"routing-options", "static", "route"}, st.Path[5:]...), Raw: st.Raw}
-		mapStaticRoute(sub, cfg, name)
-	}
 	if len(st.Path) >= 4 && st.Path[2] == "protocols" && st.Path[3] == "ospf" {
-		sub := Statement{Op: st.Op, Path: st.Path[2:], Raw: st.Raw}
-		mapOSPF(sub, cfg, name)
+		mapOSPF(Statement{Op: st.Op, Path: st.Path[2:]}, cfg, name)
 	}
-	if len(st.Path) >= 4 && st.Path[2] == "protocols" && st.Path[3] == "bgp" {
-		sub := Statement{Op: st.Op, Path: st.Path[2:], Raw: st.Raw}
-		mapBGP(sub, cfg, name)
-	}
-}
-
-func mapStaticRoute(st Statement, cfg *model.Config, context string) {
-	// routing-options static route <prefix> next-hop <nh>
-	// path after normalize may be routing-options static route PREFIX next-hop NH
-	idx := indexOf(st.Path, "route")
-	if idx < 0 || idx+1 >= len(st.Path) {
-		return
-	}
-	prefix := st.Path[idx+1]
-	gw := ""
-	iface := ""
-	for i := idx + 2; i < len(st.Path)-1; i++ {
-		switch st.Path[i] {
-		case "next-hop":
-			gw = st.Path[i+1]
-		case "qualified-next-hop":
-			gw = st.Path[i+1]
-		}
-	}
-	cfg.Routes = append(cfg.Routes, model.Route{
-		Name: prefix, Destination: prefix, Gateway: gw, Interface: iface,
-		Context: context, VDOM: context, RouteType: "static", Enabled: st.Op != OpDeactivate,
-	})
 }
 
 func mapOSPF(st Statement, cfg *model.Config, context string) {
@@ -340,42 +318,6 @@ func mapOSPF(st Statement, cfg *model.Config, context string) {
 		ospf.Interfaces = append(ospf.Interfaces, model.OSPFInterface{
 			Name: st.Path[5], Interface: st.Path[5], Area: areaID,
 		})
-	}
-}
-
-func mapBGP(st Statement, cfg *model.Config, context string) {
-	var bgp *model.BGPSettings
-	for i := range cfg.Routing.BGP {
-		if cfg.Routing.BGP[i].Context == context {
-			bgp = &cfg.Routing.BGP[i]
-			break
-		}
-	}
-	if bgp == nil {
-		cfg.Routing.BGP = append(cfg.Routing.BGP, model.BGPSettings{Context: context, VDOM: context})
-		bgp = &cfg.Routing.BGP[len(cfg.Routing.BGP)-1]
-	}
-	// protocols bgp group <g> peer-as N / neighbor IP
-	if len(st.Path) >= 5 && st.Path[2] == "group" {
-		if len(st.Path) >= 6 && st.Path[4] == "peer-as" {
-			// store as on group via neighbor later; keep AS on settings if empty
-			if bgp.ASNumber == "" {
-				bgp.ASNumber = st.Path[5]
-			}
-		}
-		if len(st.Path) >= 6 && st.Path[4] == "neighbor" {
-			ip := st.Path[5]
-			remote := ""
-			if len(st.Path) >= 8 && st.Path[6] == "peer-as" {
-				remote = st.Path[7]
-			}
-			bgp.Neighbors = append(bgp.Neighbors, model.BGPNeighbor{
-				IP: ip, RemoteAS: remote, Activate: true,
-			})
-		}
-	}
-	if PathHas(st, "protocols", "bgp", "local-as") && len(st.Path) >= 4 {
-		bgp.ASNumber = st.Path[3]
 	}
 }
 

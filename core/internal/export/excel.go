@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/negitanu/etherscribe/internal/model"
@@ -24,6 +25,7 @@ type sheetData struct {
 }
 
 func writeXLSX(sheets []sheetData) ([]byte, error) {
+	sheets = safeSheetNames(sheets)
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
 	must := func(name, body string) error {
@@ -69,6 +71,60 @@ func writeXLSX(sheets []sheetData) ([]byte, error) {
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// Sheet names are labels only; original identifiers remain in the cells.
+func safeSheetNames(sheets []sheetData) []sheetData {
+	out := append([]sheetData(nil), sheets...)
+	used := map[string]bool{}
+	for i, sh := range out {
+		base := strings.Map(func(r rune) rune {
+			if strings.ContainsRune("[]:*?/\\", r) || r < 32 {
+				return '_'
+			}
+			return r
+		}, sh.Name)
+		base = strings.Trim(base, "'")
+		if base == "" {
+			base = "シート"
+		}
+		name := base
+		for n := 1; ; n++ {
+			suffix := ""
+			if n > 1 {
+				suffix = fmt.Sprintf(" (%d)", n)
+			}
+			runes := []rune(base)
+			limit := 31 - len([]rune(suffix))
+			if len(runes) > limit {
+				runes = runes[:limit]
+			}
+			name = string(runes) + suffix
+			if !used[strings.ToLower(name)] {
+				break
+			}
+		}
+		used[strings.ToLower(name)] = true
+		out[i].Name = name
+	}
+	return out
+}
+func textWidth(s string) int {
+	max := 0
+	for _, line := range strings.Split(s, "\n") {
+		n := 0
+		for _, r := range line {
+			if r > 127 {
+				n += 2
+			} else {
+				n++
+			}
+		}
+		if n > max {
+			max = n
+		}
+	}
+	return max
 }
 
 func contentTypesXML(n int) string {
@@ -120,18 +176,34 @@ func sheetXML(rows [][]string) string {
 			maxCols = len(row)
 		}
 	}
+	widths := make([]int, maxCols)
 	for c := 0; c < maxCols; c++ {
-		width := 24
+		width := 18
 		for _, row := range rows {
-			if c < len(row) && len([]rune(row[c])) > 32 {
-				width = 48
+			if c < len(row) && textWidth(row[c])+2 > width {
+				width = textWidth(row[c]) + 2
 			}
 		}
+		if width > 48 {
+			width = 48
+		}
+		widths[c] = width
 		fmt.Fprintf(&b, `<col min="%d" max="%d" width="%d" customWidth="1"/>`, c+1, c+1, width)
 	}
 	b.WriteString(`</cols><sheetData>`)
 	for r, row := range rows {
-		fmt.Fprintf(&b, `<row r="%d">`, r+1)
+		lines := 1
+		for c, val := range row {
+			count := 0
+			for _, line := range strings.Split(val, "\n") {
+				count += int(math.Max(1, math.Ceil(float64(textWidth(line))/float64(widths[c]-2))))
+			}
+			if count > lines {
+				lines = count
+			}
+		}
+		height := math.Min(409, math.Max(30, float64(lines)*16+8))
+		fmt.Fprintf(&b, `<row r="%d" ht="%.0f" customHeight="1">`, r+1, height)
 		for c, val := range row {
 			ref := cellRef(c, r)
 			style := 0
