@@ -38,6 +38,7 @@ type Config struct {
 	Objects                Objects                `json:"objects"`
 	SecurityProfiles       []SecurityProfile      `json:"securityProfiles,omitempty"`
 	SecurityProfilesDetail SecurityProfilesDetail `json:"securityProfilesDetail,omitempty"`
+	DHCPRelays             []DHCPRelay            `json:"dhcpRelays,omitempty"`
 	DHCPServers            []DHCPServer           `json:"dhcpServers,omitempty"`
 	Routing                RoutingSettings        `json:"routing,omitempty"`
 	HA                     HASettings             `json:"ha,omitempty"`
@@ -346,17 +347,33 @@ type SSLInspectionProfile struct {
 	VDOM    string `json:"vdom"`
 }
 
+type DHCPReservation struct {
+	IP          string `json:"ip"`
+	MAC         string `json:"mac,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+type DHCPRelay struct {
+	Interface string   `json:"interface"`
+	Enabled   bool     `json:"enabled"`
+	Servers   []string `json:"servers,omitempty"`
+	Context   string   `json:"context,omitempty"`
+}
 type DHCPServer struct {
-	Interface  string   `json:"interface"`
-	StartIP    string   `json:"startIp,omitempty"`
-	EndIP      string   `json:"endIp,omitempty"`
-	Netmask    string   `json:"netmask,omitempty"`
-	Gateway    string   `json:"gateway,omitempty"`
-	DNSServers []string `json:"dnsServers,omitempty"`
-	ExcludeIPs []string `json:"excludeIps,omitempty"`
-	LeaseTime  string   `json:"leaseTime,omitempty"`
-	VDOM       string   `json:"vdom"`
-	Context    string   `json:"context,omitempty"`
+	Mode         string            `json:"mode,omitempty"`
+	IPPools      []string          `json:"ipPools,omitempty"`
+	Reservations []DHCPReservation `json:"reservations,omitempty"`
+	LeaseType    string            `json:"leaseType,omitempty"`
+	ProbeIP      *bool             `json:"probeIp,omitempty"`
+	Interface    string            `json:"interface"`
+	StartIP      string            `json:"startIp,omitempty"`
+	EndIP        string            `json:"endIp,omitempty"`
+	Netmask      string            `json:"netmask,omitempty"`
+	Gateway      string            `json:"gateway,omitempty"`
+	DNSServers   []string          `json:"dnsServers,omitempty"`
+	ExcludeIPs   []string          `json:"excludeIps,omitempty"`
+	LeaseTime    string            `json:"leaseTime,omitempty"`
+	VDOM         string            `json:"vdom"`
+	Context      string            `json:"context,omitempty"`
 }
 
 // ContextOrDefault returns ctx or DefaultContext when empty.
@@ -503,11 +520,16 @@ type HASettings struct {
 }
 
 type SyslogServer struct {
-	Server   string `json:"server"`
-	Port     string `json:"port"`
-	Facility string `json:"facility,omitempty"`
-	Status   string `json:"status"`
-	VDOM     string `json:"vdom,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Profile   string `json:"profile,omitempty"`
+	Transport string `json:"transport,omitempty"`
+	Format    string `json:"format,omitempty"`
+	Context   string `json:"context,omitempty"`
+	Server    string `json:"server"`
+	Port      string `json:"port"`
+	Facility  string `json:"facility,omitempty"`
+	Status    string `json:"status"`
+	VDOM      string `json:"vdom,omitempty"`
 }
 
 type SNMPSettings struct {
@@ -520,6 +542,7 @@ type SNMPSettings struct {
 }
 
 type LoggingSettings struct {
+	SyslogConfigured    *bool          `json:"syslogConfigured,omitempty"`
 	SyslogServers       []SyslogServer `json:"syslogServers,omitempty"`
 	SNMP                []SNMPSettings `json:"snmp,omitempty"`
 	FortiAnalyzerServer string         `json:"fortianalyzerServer,omitempty"`

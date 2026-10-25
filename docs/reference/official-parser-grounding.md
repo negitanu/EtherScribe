@@ -51,3 +51,15 @@
 ## 対応限界
 
 Cisco IOS/NX-OS パーサ、PAN-OS set/Advanced Routing、Junos apply-groups 展開・論理システム・任意 RIB・ポリシー評価は未対応。Junos delete は適用せず coverage に示す。認証情報や未知の属性を汎用の値付きダンプとして出力しない。実機・実設定・外部エンジンとの動作同等性は検証していない。
+
+## PAN-OS DHCP / Syslog とメーカー別サービス出力（2026-10-25）
+
+出典: [PAN-OS 11.1 Configure CLI hierarchy](https://docs.paloaltonetworks.com/ngfw/pan-os-cli-quick-start/cli-command-hierarchy/pan-os-11-1-configure-cli-command-hierarchy)、[DHCP Server 設定](https://docs.paloaltonetworks.com/ngfw/networking/dhcp/configure-an-interface-as-a-dhcp-server)、[Syslog Server Profiles](https://docs.paloaltonetworks.com/ngfw/help/11-1/device/device-server-profiles-syslog)、[Configure Syslog Monitoring](https://docs.paloaltonetworks.com/pan-os/11-1/pan-os-admin/monitoring/use-syslog-for-monitoring/configure-syslog-monitoring)。
+
+- DHCP: `network/dhcp/interface/entry/server` を client と分離する。auto / enabled / disabled、複数 IP プール（範囲または CIDR）、予約 IP/MAC、マスク、ゲートウェイ、DNS、probe-ip、lease の timeout / unlimited を保持する。DNS の inherited は解決せずそのまま表示する。リース timeout は設定値を保持し単位変換しない。MAC なしの予約は動的割当の除外 IP としても保持する。IPv4 relay は DHCP リレー表に分ける。
+- Syslog: shared と vsys に属するプロファイル・サーバー名・送信先・ポート・transport・format・facility を出力する。プロファイルが存在するだけでは転送が有効とは限らないため、状態は「設定あり」とし、ログ転送プロファイルとの関連付けは今回解析しない。
+- `logging.syslogConfigured` は送信先定義があれば true、解析済みで未定義なら false、解析未対応なら未出力。HTML/Excel は設定あり・設定なし・未解析を区別する。
+- FortiGate は syslogd〜syslogd4 の setting/override-setting を解析する。無効設定の送信先も明示する。
+- FortiAnalyzer は FortiGate の出力に限定する。現在の HA モデルは FortiOS 専用なので、Palo Alto/Junos では空の FortiOS 型 HA 表を出さない。メーカー判定は device_info 節の選択有無によらない。
+- 実装: `core/internal/parse/paloalto/services.go`、`core/internal/export/vendor_services.go`。合成回帰: `core/testdata/paloalto-dhcp-syslog.xml`、`core/testdata/fortigate-service-report.conf`、`core/internal/pipeline/vendor_services_test.go`。
+- DHCP の追加オプション、IPv6 relay、Syslog カスタム format は構造のみ coverage に記録する。

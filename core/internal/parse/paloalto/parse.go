@@ -51,6 +51,7 @@ type systemCfg struct {
 }
 
 type network struct {
+	DHCP          dhcpBlock      `xml:"dhcp"`
 	Interface     interfaceBlk   `xml:"interface"`
 	VLAN          networkVLANBlk `xml:"vlan"`
 	VirtualRouter vrBlk          `xml:"virtual-router"`
@@ -212,14 +213,15 @@ type vsysBlk struct {
 }
 
 type vsysEntry struct {
-	Name         string     `xml:"name,attr"`
-	Zone         entryList  `xml:"zone"`
-	Rulebase     rulebase   `xml:"rulebase"`
-	Import       importBlk  `xml:"import"`
-	Address      addrBlk    `xml:"address"`
-	AddressGroup addrGrpBlk `xml:"address-group"`
-	Service      svcBlk     `xml:"service"`
-	ServiceGroup svcGrpBlk  `xml:"service-group"`
+	LogSettings  logSettings `xml:"log-settings"`
+	Name         string      `xml:"name,attr"`
+	Zone         entryList   `xml:"zone"`
+	Rulebase     rulebase    `xml:"rulebase"`
+	Import       importBlk   `xml:"import"`
+	Address      addrBlk     `xml:"address"`
+	AddressGroup addrGrpBlk  `xml:"address-group"`
+	Service      svcBlk      `xml:"service"`
+	ServiceGroup svcGrpBlk   `xml:"service-group"`
 }
 
 type addrBlk struct {
@@ -399,11 +401,12 @@ type importNet struct {
 }
 
 type shared struct {
-	Address      addrBlk    `xml:"address"`
-	AddressGroup addrGrpBlk `xml:"address-group"`
-	Service      svcBlk     `xml:"service"`
-	ServiceGroup svcGrpBlk  `xml:"service-group"`
-	Application  entryList  `xml:"application"`
+	LogSettings  logSettings `xml:"log-settings"`
+	Address      addrBlk     `xml:"address"`
+	AddressGroup addrGrpBlk  `xml:"address-group"`
+	Service      svcBlk      `xml:"service"`
+	ServiceGroup svcGrpBlk   `xml:"service-group"`
+	Application  entryList   `xml:"application"`
 }
 
 // Parse parses Palo Alto XML export (MVP subset).
@@ -527,6 +530,13 @@ func Parse(content, filename string) (*model.Config, error) {
 	}
 
 	applyNetworkContexts(cfg)
+	convertDHCPServices(cfg, device.Network.DHCP)
+	convertSyslogProfiles(cfg, root.Shared.LogSettings, "shared")
+	for _, vs := range device.Vsys.Entries {
+		convertSyslogProfiles(cfg, vs.LogSettings, vs.Name)
+	}
+	configured := len(cfg.Logging.SyslogServers) > 0
+	cfg.Logging.SyslogConfigured = &configured
 	collectPACoverage(content, cfg)
 	convertIKEGateways(cfg, device)
 

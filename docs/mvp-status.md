@@ -87,3 +87,7 @@ OpenSpec: `harden-real-config-ingestion`。詳細は `docs/private-config-valida
 ## 公式 CLI に基づくネットワーク解析の強化
 
 `ground-parser-network-semantics` で Junos BGP 継承・自 AS/対向 AS 分離、静的ルート属性統合、LACP 明示設定、compact brace/inactive を修正。FortiOS の複数 IPv4/IPv6・VRF・MTU・aggregate・経路属性、PAN-OS XML の IPv6・MTU・virtual-router 所属を追加し、JSON/HTML/Excel に反映。公式根拠・対応限界は [対照記録](reference/official-parser-grounding.md)、検証は `core/internal/pipeline/grounded_network_test.go`。Go 全テスト・fixture gate・エンジンビルド成功。
+
+## メーカー別サービス出力
+
+`fix-vendor-services-report` で Palo Alto DHCP サーバー/IPv4 リレー、shared/vsys の Syslog プロファイルと送信先を追加。Syslog の設定あり/なし/未解析を区別し、Palo Alto/Junos から FortiAnalyzer と未対応の FortiOS 型 HA 表を除外する。Go 全テスト・fixture gate・エンジンビルド成功。

@@ -27,18 +27,18 @@ func collectPACoverage(content string, cfg *model.Config) {
 		"devices/entry":                                          "network vsys deviceconfig",
 		"devices/entry/deviceconfig":                             "system",
 		"devices/entry/deviceconfig/system":                      "hostname ip-address netmask default-gateway domain timezone dns-setting ntp-servers",
-		"devices/entry/network":                                  "interface vlan virtual-router ike",
+		"devices/entry/network":                                  "interface vlan virtual-router ike dhcp",
 		"devices/entry/network/interface":                        "ethernet aggregate-ethernet vlan loopback tunnel",
 		"devices/entry/network/ike":                              "gateway",
 		"devices/entry/network/virtual-router":                   "entry",
 		"devices/entry/network/virtual-router/entry":             "routing-table interface",
 		"devices/entry/vsys":                                     "entry",
-		"devices/entry/vsys/entry":                               "address address-group service service-group zone import rulebase",
+		"devices/entry/vsys/entry":                               "address address-group service service-group zone import rulebase log-settings",
 		"devices/entry/vsys/entry/rulebase":                      "security nat",
 		"devices/entry/vsys/entry/rulebase/security":             "rules",
 		"devices/entry/vsys/entry/rulebase/security/rules":       "entry",
 		"devices/entry/vsys/entry/rulebase/security/rules/entry": "from to source destination application service action disabled log-end log-start description schedule source-user category tag profile-setting",
-		"shared": "address address-group service service-group application",
+		"shared": "address address-group service service-group application log-settings",
 	}
 	for _, kind := range []string{"ethernet", "aggregate-ethernet"} {
 		prefix := "devices/entry/network/interface/" + kind
@@ -109,6 +109,29 @@ func collectPACoverage(content string, cfg *model.Config) {
 			rules[path+"/ipv6/address"] = "entry"
 			rules[path+"/ipv6/address/entry"] = ""
 		}
+	}
+
+	dhcp := "devices/entry/network/dhcp"
+	rules[dhcp] = "interface"
+	rules[dhcp+"/interface"] = "entry"
+	rules[dhcp+"/interface/entry"] = "server relay"
+	server := dhcp + "/interface/entry/server"
+	rules[server] = "mode probe-ip option ip-pool reserved"
+	rules[server+"/option"] = "lease gateway subnet-mask dns"
+	rules[server+"/option/lease"] = "timeout unlimited"
+	rules[server+"/option/dns"] = "primary secondary"
+	rules[server+"/reserved"] = "entry"
+	rules[server+"/reserved/entry"] = "mac description"
+	relay := dhcp + "/interface/entry/relay"
+	rules[relay] = "ip"
+	rules[relay+"/ip"] = "enabled server"
+	for _, scope := range []string{"shared", "devices/entry/vsys/entry"} {
+		p := scope + "/log-settings"
+		rules[p] = "syslog"
+		rules[p+"/syslog"] = "entry"
+		rules[p+"/syslog/entry"] = "server"
+		rules[p+"/syslog/entry/server"] = "entry"
+		rules[p+"/syslog/entry/server/entry"] = "server transport port format facility"
 	}
 
 	counts := map[string]int{}

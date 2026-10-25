@@ -106,6 +106,7 @@ func Parse(content, filename string) (*model.Config, error) {
 		convertOSPF(cfg, vn, name)
 		convertBGP(cfg, vn, name)
 		convertPolicyRoutes(cfg, vn, name)
+		convertSyslogSettings(cfg, vn, name)
 	}
 	sort.Strings(vdoms)
 	if len(vdoms) > 0 {
@@ -141,6 +142,11 @@ func Parse(content, filename string) (*model.Config, error) {
 			if _, ok := known[key]; !ok {
 				coverageCounts[prefix+key]++
 			}
+		}
+	}
+	for _, name := range []string{"syslogd", "syslogd2", "syslogd3", "syslogd4"} {
+		for _, suffix := range []string{"setting", "override-setting"} {
+			known["log "+name+" "+suffix] = struct{}{}
 		}
 	}
 	inspect(global, "global/")

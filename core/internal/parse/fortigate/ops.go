@@ -134,22 +134,7 @@ func isDigits(s string) bool {
 // convertLogging ports WallScribe converters/misc.convert_logging.
 // SNMP community strings are never stored.
 func convertLogging(cfg *model.Config, global Node) {
-	if syslog := global.Map("log syslogd setting"); syslog != nil && len(syslog) > 0 {
-		status := "disabled"
-		if syslog.String("status") == "enable" {
-			status = "enabled"
-		}
-		port := syslog.String("port")
-		if port == "" {
-			port = "514"
-		}
-		cfg.Logging.SyslogServers = append(cfg.Logging.SyslogServers, model.SyslogServer{
-			Server:   syslog.String("server"),
-			Port:     port,
-			Facility: syslog.String("facility"),
-			Status:   status,
-		})
-	}
+	convertSyslogSettings(cfg, global, "")
 
 	snmpEnabled := false
 	if sysinfo := global.Map("system snmp sysinfo"); sysinfo != nil {
@@ -235,4 +220,26 @@ func parseSNMPHosts(hosts Node) []string {
 		}
 	}
 	return out
+}
+
+func convertSyslogSettings(cfg *model.Config, scope Node, vdom string) {
+	for _, name := range []string{"syslogd", "syslogd2", "syslogd3", "syslogd4"} {
+		for _, suffix := range []string{"setting", "override-setting"} {
+			syslog := scope.Map("log " + name + " " + suffix)
+			if syslog == nil {
+				continue
+			}
+			status := "disabled"
+			if syslog.String("status") == "enable" {
+				status = "enabled"
+			}
+			port := syslog.String("port")
+			if port == "" {
+				port = "514"
+			}
+			cfg.Logging.SyslogServers = append(cfg.Logging.SyslogServers, model.SyslogServer{Name: name, Server: syslog.String("server"), Port: port, Facility: syslog.String("facility"), Transport: syslog.String("mode"), Format: syslog.String("format"), Status: status, VDOM: vdom, Context: vdom})
+		}
+	}
+	configured := len(cfg.Logging.SyslogServers) > 0
+	cfg.Logging.SyslogConfigured = &configured
 }

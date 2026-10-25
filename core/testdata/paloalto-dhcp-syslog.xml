@@ -1,0 +1,31 @@
+<config version="11.1.0">
+ <shared><log-settings><syslog><entry name="SHARED-SIEM"><server>
+  <entry name="collector-a"><server>192.0.2.200</server><transport>SSL</transport><port>6514</port><format>IETF</format><facility>LOG_LOCAL4</facility></entry>
+ </server></entry></syslog></log-settings></shared>
+ <devices><entry name="localhost.localdomain">
+  <deviceconfig><system><hostname>PA-SERVICES-LAB</hostname></system></deviceconfig>
+  <network>
+   <interface><ethernet>
+    <entry name="ethernet1/1"><layer3><ip><entry name="192.0.2.1/24"/></ip></layer3></entry>
+    <entry name="ethernet1/2"><layer3><ip><entry name="198.51.100.1/24"/></ip></layer3></entry>
+    <entry name="ethernet1/3"><layer3><dhcp-client><enable>yes</enable></dhcp-client></layer3></entry>
+    <entry name="ethernet1/4"><layer3><ip><entry name="203.0.113.1/24"/></ip></layer3></entry>
+    <entry name="ethernet1/5"><layer3><ip><entry name="192.0.2.129/25"/></ip></layer3></entry>
+   </ethernet></interface>
+   <dhcp><interface>
+    <entry name="ethernet1/1"><server><mode>auto</mode><probe-ip>yes</probe-ip>
+     <ip-pool><member>192.0.2.20-192.0.2.60</member><member>198.51.100.0/24</member></ip-pool>
+     <option><gateway>192.0.2.1</gateway><subnet-mask>255.255.255.0</subnet-mask><dns><primary>192.0.2.53</primary><secondary>inherited</secondary></dns><lease><timeout>1440</timeout></lease><dns-suffix>UNMODELED-SUFFIX.example.test</dns-suffix></option>
+     <reserved><entry name="192.0.2.30"><mac>02:00:00:00:00:30</mac><description>reserved &amp; pinned</description></entry><entry name="192.0.2.31"><description>excluded from dynamic pool</description></entry></reserved>
+    </server></entry>
+    <entry name="ethernet1/2"><server><mode>disabled</mode><probe-ip>no</probe-ip><option><lease><unlimited/></lease></option><ip-pool><member>198.51.100.20-198.51.100.40</member></ip-pool></server></entry>
+    <entry name="ethernet1/4"><relay><ip><enabled>yes</enabled><server><member>192.0.2.70</member><member>192.0.2.71</member></server></ip><ipv6><enabled>yes</enabled><server><entry name="2001:db8::70"/></server></ipv6></relay></entry>
+    <entry name="ethernet1/5"><server><mode>enabled</mode><ip-pool><member>192.0.2.128/25</member></ip-pool></server></entry>
+   </interface></dhcp>
+  </network>
+  <vsys><entry name="vsys1">
+   <import><network><interface><member>ethernet1/1</member><member>ethernet1/2</member><member>ethernet1/3</member><member>ethernet1/4</member><member>ethernet1/5</member></interface></network></import>
+   <log-settings><syslog><entry name="VSYS-SIEM"><server><entry name="collector-b"><server>syslog.example.test</server><transport>UDP</transport><port>514</port><format>BSD</format><facility>LOG_USER</facility></entry></server><format><traffic>UNMODELED-FORMAT</traffic></format></entry></syslog></log-settings>
+  </entry></vsys>
+ </entry></devices>
+</config>

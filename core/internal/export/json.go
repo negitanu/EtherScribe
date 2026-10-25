@@ -34,6 +34,7 @@ type JSONDocument struct {
 	Objects                any `json:"objects,omitempty"`
 	SecurityProfiles       any `json:"securityProfiles,omitempty"`
 	SecurityProfilesDetail any `json:"securityProfilesDetail,omitempty"`
+	DHCPRelays             any `json:"dhcpRelays,omitempty"`
 	DHCPServers            any `json:"dhcpServers,omitempty"`
 	Routing                any `json:"routing,omitempty"`
 	HA                     any `json:"ha,omitempty"`
@@ -62,6 +63,7 @@ func RenderJSON(cfg *model.Config, sections []string) ([]byte, error) {
 	if SectionSelected(sections, "network") {
 		doc.Interfaces = scrubValue(cfg.Interfaces, "interfaces", &redacted)
 		doc.Routes = scrubValue(cfg.Routes, "routes", &redacted)
+		doc.DHCPRelays = scrubValue(cfg.DHCPRelays, "dhcpRelays", &redacted)
 		doc.DHCPServers = scrubValue(cfg.DHCPServers, "dhcpServers", &redacted)
 		doc.Routing = scrubValue(cfg.Routing, "routing", &redacted)
 	}
@@ -90,11 +92,17 @@ func RenderJSON(cfg *model.Config, sections []string) ([]byte, error) {
 		doc.SecurityProfiles = scrubValue(cfg.SecurityProfiles, "securityProfiles", &redacted)
 		doc.SecurityProfilesDetail = scrubValue(cfg.SecurityProfilesDetail, "securityProfilesDetail", &redacted)
 	}
-	if SectionSelected(sections, "ha") {
+	if SectionSelected(sections, "ha") && fortiServicesApplicable(cfg) {
 		doc.HA = scrubValue(cfg.HA, "ha", &redacted)
 	}
 	if SectionSelected(sections, "logging") {
 		doc.Logging = scrubValue(cfg.Logging, "logging", &redacted)
+		if !fortiServicesApplicable(cfg) {
+			if logging, ok := doc.Logging.(map[string]any); ok {
+				delete(logging, "fortianalyzerServer")
+				delete(logging, "fortianalyzerStatus")
+			}
+		}
 	}
 	doc.Coverage = cfg.Coverage
 	doc.ParseErrors = cfg.ParseErrors

@@ -34,3 +34,7 @@ renderer は `sections.list` の `presets` / `sections` を表示し、`convert:
 ## ネットワークモデルの加算項目
 
 既存メソッドと schemaVersion は維持する。IF に `addresses`、`ipv6Enabled`（明示時のみ）、`mtu`、`routingContext`、経路に `priority` / `action` / `description` / `destinationObject` / `routingContext`、BGP peer に `group` / `localAs` / `importPolicies` / `exportPolicies` を追加。詳細と公式出典は [公式リファレンス対照](reference/official-parser-grounding.md) を参照。
+
+### メーカー別サービス
+
+`dhcpServers` に `mode` / `ipPools` / `reservations` / `leaseType` / `probeIp`、ネットワーク節に `dhcpRelays` を追加。`logging.syslogConfigured` は nullable な有無情報で、省略は未解析。Syslog サーバーには `name` / `profile` / `transport` / `format` / `context` を追加する。FortiAnalyzer フィールドと FortiOS 型 HA は既知の非 FortiGate では出力しない。

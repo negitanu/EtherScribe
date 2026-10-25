@@ -21,8 +21,8 @@ type reportField struct {
 	typ reflect.Type
 }
 
-var reportOrder = []string{"deviceInfo", "virtualContexts", "systemSettings", "interfaces", "vlans", "lags", "stp", "routes", "routing", "dhcpServers", "objects", "firewallPolicies", "natPolicies", "vpn", "securityProfiles", "securityProfilesDetail", "ha", "logging", "coverage"}
-var reportSections = map[string]string{"deviceInfo": "device_info", "virtualContexts": "device_info", "systemSettings": "system_settings", "interfaces": "network", "routes": "network", "routing": "network", "dhcpServers": "network", "vlans": "vlans", "lags": "lag", "stp": "stp", "objects": "objects", "firewallPolicies": "policies", "natPolicies": "nat", "vpn": "vpn", "securityProfiles": "security_profiles", "securityProfilesDetail": "security_profiles", "ha": "ha", "logging": "logging"}
+var reportOrder = []string{"deviceInfo", "virtualContexts", "systemSettings", "interfaces", "vlans", "lags", "stp", "routes", "routing", "dhcpServers", "dhcpRelays", "objects", "firewallPolicies", "natPolicies", "vpn", "securityProfiles", "securityProfilesDetail", "ha", "logging", "coverage"}
+var reportSections = map[string]string{"deviceInfo": "device_info", "virtualContexts": "device_info", "systemSettings": "system_settings", "interfaces": "network", "routes": "network", "routing": "network", "dhcpServers": "network", "dhcpRelays": "network", "vlans": "vlans", "lags": "lag", "stp": "stp", "objects": "objects", "firewallPolicies": "policies", "natPolicies": "nat", "vpn": "vpn", "securityProfiles": "security_profiles", "securityProfilesDetail": "security_profiles", "ha": "ha", "logging": "logging"}
 
 func reportTables(cfg *model.Config, sections []string) ([]sheetData, error) {
 	data, err := RenderJSON(cfg, sections)
@@ -44,7 +44,13 @@ func reportTables(cfg *model.Config, sections []string) ([]sheetData, error) {
 		if key != "coverage" && !SectionSelected(sections, reportSections[key]) {
 			continue
 		}
-		typ := types[key]
+		if key == "ha" && !fortiServicesApplicable(cfg) {
+			continue
+		}
+		if key == "dhcpRelays" && !dhcpRelayApplicable(cfg) {
+			continue
+		}
+		typ := vendorServiceType(cfg, key, types[key])
 		single := typ.Kind() != reflect.Slice
 		tables = append(tables, buildReportTables(key, reportLabel(key), typ, toReportRecords(doc[key]), single)...)
 	}
@@ -231,6 +237,12 @@ func firstReportString(v any, fallback string) string {
 	return fallback
 }
 func columnLabel(path, key string) string {
+	if path == "logging.syslogServers" && key == "profile" {
+		return "Syslog プロファイル"
+	}
+	if path == "dhcpServers" && key == "leaseTime" {
+		return "リース時間（設定値）"
+	}
 	if path == "routes" && key == "distance" {
 		return "管理距離 / Preference"
 	}
@@ -251,8 +263,19 @@ func columnLabel(path, key string) string {
 	return reportLabel(key)
 }
 func reportValue(key string, value any) string {
+	if key == "syslogConfigured" {
+		if b, ok := value.(bool); ok {
+			if b {
+				return "設定あり"
+			}
+			return "設定なし"
+		}
+	}
 	switch v := value.(type) {
 	case nil:
+		if key == "syslogConfigured" {
+			return "未解析"
+		}
 		return ""
 	case bool:
 		if strings.HasSuffix(key, "Configured") {
@@ -275,11 +298,14 @@ func reportValue(key string, value any) string {
 		if v == "<redacted>" {
 			return "秘匿済み"
 		}
+		if key == "status" && v == "configured" {
+			return "設定あり"
+		}
 		if key == "status" || key == "fortianalyzerStatus" {
-			if v == "enable" {
+			if v == "enable" || v == "enabled" {
 				return "有効"
 			}
-			if v == "disable" {
+			if v == "disable" || v == "disabled" {
 				return "無効"
 			}
 		}
@@ -290,6 +316,7 @@ func reportValue(key string, value any) string {
 }
 
 var reportLabels = map[string]string{
+	"syslogConfigured": "Syslog 設定", "dhcpRelays": "DHCP リレー", "ipPools": "IP プール", "reservations": "予約アドレス", "leaseType": "リース方式", "probeIp": "割当前 IP 確認", "mac": "MAC アドレス", "servers": "転送先サーバー", "transport": "転送方式", "format": "形式",
 	"ipv6Enabled": "IPv6 有効", "destinationObject": "宛先オブジェクト", "group": "グループ", "mtu": "MTU", "routingContext": "ルーティング所属", "localAs": "ローカル AS", "importPolicies": "受信ポリシー", "exportPolicies": "送信ポリシー",
 	"deviceInfo": "機器概要", "virtualContexts": "仮想コンテキスト", "systemSettings": "システム設定", "interfaces": "インターフェース", "vlans": "VLAN", "lags": "LAG", "stp": "STP", "routes": "ルート", "routing": "動的ルーティング", "dhcpServers": "DHCP", "objects": "オブジェクト", "firewallPolicies": "ポリシー", "natPolicies": "NAT", "vpn": "VPN", "securityProfiles": "セキュリティプロファイル", "securityProfilesDetail": "セキュリティ詳細", "ha": "HA", "logging": "ログ・監視", "coverage": "解析範囲",
 	"hostname": "ホスト名", "model": "機種", "osVersion": "OS バージョン", "name": "名前", "deviceType": "機器種別", "role": "役割", "interfaceType": "種別", "ipAddress": "IP アドレス", "context": "コンテキスト", "vdom": "VDOM / vsys", "status": "状態", "description": "説明", "destination": "宛先", "gateway": "ゲートウェイ", "interface": "インターフェース", "switchportMode": "ポートモード", "accessVlan": "アクセス VLAN", "trunkVlans": "トランク VLAN", "nativeVlan": "ネイティブ VLAN", "lagParent": "所属 LAG", "vlanId": "VLAN ID", "members": "メンバー", "lacpEnabled": "LACP 有効", "policyId": "ID", "sourceAddress": "送信元アドレス", "destinationAddress": "宛先アドレス", "sourceInterface": "送信元 IF", "destinationInterface": "宛先 IF", "service": "サービス", "action": "動作", "path": "パス", "reason": "理由", "note": "備考",
