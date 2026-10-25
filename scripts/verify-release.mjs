@@ -31,7 +31,7 @@ for (const name of files) {
   if (!/^\/(?:package\.json|dist(?:\/|$)|dist-electron(?:\/|$))/.test(name)) throw new Error('Unapproved app payload entry');
   if (/\.(?:map|conf|xml|set|pem|key|env)$/.test(name)) throw new Error('Configuration/source map in app payload');
   if (/\.(?:js|html|css|json)$/.test(name)) {
-    const content = asar.extractFile(archive, name.slice(1)).toString();
+    const content = asar.extractFile(archive, name.slice(1).split('/').join(path.sep)).toString();
     if (/(?:\/Users\/[^/\s]+\/|[A-Z]:\\Users\\[^\\\s]+\\|\/home\/runner\/work\/)/.test(content)) throw new Error('Local build path in app payload');
   }
 }
