@@ -1,0 +1,11 @@
+# Independent synthetic PAN-OS set: currently unsupported
+set deviceconfig system hostname CORPUS-PA-CLI
+set network interface ethernet ethernet1/1 layer3 ip 192.0.2.1/24
+set vsys vsys1 address App ip-netmask 198.51.100.80/32
+set vsys vsys1 rulebase security rules allow-app from any
+set vsys vsys1 rulebase security rules allow-app to any
+set vsys vsys1 rulebase security rules allow-app source any
+set vsys vsys1 rulebase security rules allow-app destination App
+set vsys vsys1 rulebase security rules allow-app application ssl
+set vsys vsys1 rulebase security rules allow-app service application-default
+set vsys vsys1 rulebase security rules allow-app action allow

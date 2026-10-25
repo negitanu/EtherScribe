@@ -1,0 +1,268 @@
+<config version="11.1.0">
+  <shared>
+    <address>
+      <entry name="Shared DNS">
+        <ip-netmask>192.0.2.53/32</ip-netmask>
+      </entry>
+    </address>
+  </shared>
+  <devices>
+    <entry name="localhost.localdomain">
+      <deviceconfig>
+        <system>
+          <hostname>CORPUS-PA</hostname>
+        </system>
+      </deviceconfig>
+      <network>
+        <interface>
+          <ethernet>
+            <entry name="ethernet1/1">
+              <layer3>
+                <ip>
+                  <entry name="192.0.2.1/24" />
+                </ip>
+              </layer3>
+            </entry>
+            <entry name="ethernet1/2">
+              <layer3>
+                <ip>
+                  <entry name="198.51.100.1/24" />
+                </ip>
+              </layer3>
+            </entry>
+          </ethernet>
+        </interface>
+        <virtual-router>
+          <entry name="default">
+            <interface>
+              <member>ethernet1/1</member>
+            </interface>
+            <routing-table>
+              <ip>
+                <static-route>
+                  <entry name="default">
+                    <destination>0.0.0.0/0</destination>
+                    <nexthop>
+                      <ip-address>192.0.2.254</ip-address>
+                    </nexthop>
+                    <interface>ethernet1/1</interface>
+                  </entry>
+                </static-route>
+              </ip>
+            </routing-table>
+          </entry>
+        </virtual-router>
+      </network>
+      <vsys>
+        <entry name="vsys1">
+          <address>
+            <entry name="App Server">
+              <ip-netmask>192.0.2.10/32</ip-netmask>
+            </entry>
+          </address>
+          <address-group>
+            <entry name="Servers">
+              <static>
+                <member>App Server</member>
+              </static>
+            </entry>
+          </address-group>
+          <service>
+            <entry name="App TLS">
+              <protocol>
+                <tcp>
+                  <port>443,8443</port>
+                </tcp>
+              </protocol>
+            </entry>
+          </service>
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="allow-app">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <application>
+                    <member>ssl</member>
+                  </application>
+                  <service>
+                    <member>App TLS</member>
+                  </service>
+                  <action>allow</action>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="deny-rest">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <application>
+                    <member>ssl</member>
+                  </application>
+                  <service>
+                    <member>App TLS</member>
+                  </service>
+                  <action>deny</action>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+          <rulebase>
+            <nat>
+              <rules>
+                <entry name="publish-app">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <service>any</service>
+                  <destination-translation>
+                    <translated-address>192.0.2.10</translated-address>
+                  </destination-translation>
+                  <destination-translation>
+                    <translated-port>8443</translated-port>
+                  </destination-translation>
+                </entry>
+              </rules>
+            </nat>
+          </rulebase>
+        </entry>
+        <entry name="vsys2">
+          <address>
+            <entry name="App Server">
+              <ip-netmask>198.51.100.10/32</ip-netmask>
+            </entry>
+          </address>
+          <address-group>
+            <entry name="Servers">
+              <static>
+                <member>App Server</member>
+              </static>
+            </entry>
+          </address-group>
+          <service>
+            <entry name="App TLS">
+              <protocol>
+                <tcp>
+                  <port>443,8443</port>
+                </tcp>
+              </protocol>
+            </entry>
+          </service>
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="allow-app">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <application>
+                    <member>ssl</member>
+                  </application>
+                  <service>
+                    <member>App TLS</member>
+                  </service>
+                  <action>allow</action>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+          <rulebase>
+            <security>
+              <rules>
+                <entry name="deny-rest">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <application>
+                    <member>ssl</member>
+                  </application>
+                  <service>
+                    <member>App TLS</member>
+                  </service>
+                  <action>deny</action>
+                </entry>
+              </rules>
+            </security>
+          </rulebase>
+          <rulebase>
+            <nat>
+              <rules>
+                <entry name="publish-app">
+                  <from>
+                    <member>any</member>
+                  </from>
+                  <to>
+                    <member>any</member>
+                  </to>
+                  <source>
+                    <member>any</member>
+                  </source>
+                  <destination>
+                    <member>App Server</member>
+                  </destination>
+                  <service>any</service>
+                  <destination-translation>
+                    <translated-address>198.51.100.10</translated-address>
+                  </destination-translation>
+                  <destination-translation>
+                    <translated-port>8443</translated-port>
+                  </destination-translation>
+                </entry>
+              </rules>
+            </nat>
+          </rulebase>
+        </entry>
+      </vsys>
+    </entry>
+  </devices>
+</config>

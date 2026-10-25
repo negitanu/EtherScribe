@@ -111,3 +111,13 @@ coverage.xml
 # Real device CLI configurations; only synthetic fixtures belong in Git
 *.set
 !core/testdata/*.set
+
+# Private device configurations and local validation inputs
+/.data/
+/data/
+
+# Public, revision-pinned Batfish reference corpus (not private configurations)
+!/.test/
+!/.test/README.md
+!/.test/batfish/
+!/.test/batfish/**
