@@ -34,7 +34,7 @@ desktop/         Electron + TypeScript。npm lockfile は desktop/package-lock.j
 docs/            IPC・リリース手順・WallScribe 参照
 openspec/        仕様と変更。CLI は @fission-ai/openspec@1.3.1（同梱スキルの generatedBy）
 scripts/         ビルド、fixture 検査、リリース監査
-.cursor/         Cloud Agent の install（.cursor/environment.json → .cursor/install.sh）
+.cursor/         Cloud Agent の install。OpenSpec CLI は .cursor/tools/package-lock.json
 ```
 
 専用の ESLint / golangci-lint 設定は無い。GitHub Actions（`.github/workflows/release.yml`）の Ubuntu ジョブが検査の基準である。Node は 22、Go は `go-version: stable`（この環境では Go 1.27.3 を `/usr/local/go` に固定）。`core/` に go.sum は無く、ビルドスクリプトは `GOPROXY=off` でローカル replace だけを使う。
@@ -43,16 +43,16 @@ scripts/         ビルド、fixture 検査、リリース監査
 
 Cursor の Linux VM では `.cursor/environment.json` の `install` が `bash .cursor/install.sh` を実行する。手動で揃えるときも同じスクリプトを使う。2 回実行しても成功する。
 
-導入内容は Go 1.27.3（公式 tarball、SHA-256 検証）、OpenSpec CLI 1.3.1、`desktop/` の `npm ci` である。Node.js 22 と python3 はイメージに入っている前提で、スクリプトは不足時に失敗する。常駐サービスは不要なため `start` は置かない。
+導入内容は Go 1.27.3（公式 tarball、SHA-256 検証）、`.cursor/tools` の `npm ci`（OpenSpec CLI 1.3.1 と lockfile 上の推移依存）、`desktop/` の `npm ci` である。Node.js 22 と python3 はイメージに入っている前提で、スクリプトは不足時に失敗する。常駐サービスは不要なため `start` は置かない。
 
 ## ビルド・テスト・検査
 
-リポジトリルートで実行する。
+各コマンドはリポジトリルートで実行する。サブシェルの外ではカレントディレクトリを変えない。
 
 ```bash
 export PATH="/usr/local/bin:${PATH}"
 
-cd core && go test ./...
+(cd core && go test ./...)
 bash scripts/check-fixture-keys.sh
 node --test scripts/release-tools.test.cjs
 python3 scripts/audit-release.py --history
@@ -63,7 +63,7 @@ OPENSPEC_TELEMETRY=0 openspec validate --all --strict
 エンジン単体の起動確認:
 
 ```bash
-cd core && GOPROXY=off go run ./cmd/etherscribe version
+(cd core && GOPROXY=off go run ./cmd/etherscribe version)
 ```
 
 Linux 上のディレクトリ配布（`electron-builder --dir`）は `./scripts/build.sh`。CI が Ubuntu で行うエンジンのクロスコンパイルは次のとおり。

@@ -51,13 +51,18 @@ export PATH="/usr/local/bin:${PATH}"
 hash -r
 
 # `node` on the cloud image is /exec-daemon/node, so npm's default global
-# prefix is not writable. Install the CLI under the user prefix and symlink it.
-openspec_prefix="${HOME}/.local"
-openspec_version="$(${openspec_prefix}/bin/openspec --version 2>/dev/null || true)"
+# prefix is not writable. Install from the committed lockfile and symlink the bin.
+# Drop the earlier unpinned prefix install so it cannot shadow /usr/local/bin.
+rm -f "${HOME}/.local/bin/openspec" \
+  "${HOME}/.local/lib/node_modules/.bin/openspec"
+rm -rf "${HOME}/.local/lib/node_modules/@fission-ai/openspec"
+npm ci --no-audit --no-fund --prefix "$ROOT/.cursor/tools"
+sudo ln -sfn "$ROOT/.cursor/tools/node_modules/.bin/openspec" /usr/local/bin/openspec
+hash -r
+openspec_version="$(openspec --version 2>/dev/null || true)"
 if [[ "$openspec_version" != *"${OPENSPEC_VERSION}"* ]]; then
-  mkdir -p "$openspec_prefix"
-  npm install -g --prefix "$openspec_prefix" "@fission-ai/openspec@${OPENSPEC_VERSION}"
+  echo "Expected OpenSpec ${OPENSPEC_VERSION}, found: ${openspec_version:-missing}" >&2
+  exit 1
 fi
-sudo ln -sfn "${openspec_prefix}/bin/openspec" /usr/local/bin/openspec
 
 npm ci --no-audit --no-fund --prefix "$ROOT/desktop"
