@@ -1,0 +1,4 @@
+{
+  "name": "EtherScribe",
+  "install": "bash .cursor/install.sh"
+}

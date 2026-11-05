@@ -1,0 +1,8 @@
+{
+  "name": "etherscribe-cloud-tools",
+  "private": true,
+  "description": "CLIs installed by .cursor/install.sh. The lockfile pins transitive dependencies.",
+  "dependencies": {
+    "@fission-ai/openspec": "1.3.1"
+  }
+}
