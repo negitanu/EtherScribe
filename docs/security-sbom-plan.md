@@ -31,14 +31,15 @@ Go エンジンは別である。v1.0.0 の CI は `go1.27.3` でビルドし、
 - 証拠: `desktop/package-lock.json` の `electron@33.4.11`。Electron 公式リリースは、この版を 2025-04-26 出荷、Chromium 130.0.6723.191 / Node 20.18.3 とし、33 系はサポート終了と明記している。サポート終了日は 2025-04-28。v1.0.0 の公開は 2026-10-25 で、終了から約 18 か月後である。
 - OSV（2026-11-05）: `pkg:npm/electron@33.4.11` に 46 件。修正版は概ね 38 系以降で、33 系には戻っていない。
 - 今のアプリが実際に使っている境界は強い。`desktop/src/main/main.ts` は `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`。描画側 CSP は `script-src 'self'`。プレビュー iframe は `sandbox=""`。生成 HTML は `html.EscapeString`、Excel は数式ではなく `inlineStr`。本番はローカルの `index.html` だけを開く。
-- 46 件のうち、機能がコードに無いものは非該当として VEX する（下の初期判断）。`contextBridge` で Promise を返す形（`desktop/src/preload/preload.ts`）は GHSA-h7rp-cf8h-j98x（CVE-2026-70601）のパターンに一致する。アドバイザリ自身が「信頼できない内容をそのウィンドウに読み込まないアプリは影響を受けない」と書いている。現行の本番 UI はこれに当たる。プレビューは別フレームで、スクリプトは sandbox で動かない。
+- 46 件を、アプリがその API を呼んでいないという理由で `code_not_present` にまとめない。脆弱なコードは Electron のバイナリに含まれたままである。未使用の機能は、脆弱なコードが成果物から除かれたことではない。VEX の列挙値と、一件ごとの `analysis.detail` は下の「VEX」に従う。条件を detail に書けない ID は `in_triage` のままにする。
+- `contextBridge` で Promise を返す形（`desktop/src/preload/preload.ts`）は GHSA-h7rp-cf8h-j98x（CVE-2026-70601）のパターンに一致する。アドバイザリは「信頼できない内容をそのウィンドウに読み込まないアプリは影響を受けない」と書く。現行の本番 UI はローカルの自前ページである。プレビューは別フレームで、スクリプトは sandbox で動かない。この一件を `not_affected` にするときの justification は `requires_environment`（そのウィンドウに信頼できない文書を載せていない）であり、`code_not_present` ではない。
 - それでも高にする理由は、個別 CVE の再現ではなく、この Chromium には今後パッチが来ないことである。製品は第三者の設定ファイルを HTML としてこの Chromium に渡す。パーサの不具合は script タグが無くても届き得る。Electron 固有 GHSA 以外の Chromium CVE は、この調査では 1 件ずつ突合していない。
 
-初期の非該当（機能が無い、またはアドバイザリの前提を満たさない）。Phase 2 の VEX に `not_affected` / `vulnerable_code_not_present` で書く。
+調査時点の振り分けは、単一の justification で埋めない。Phase 2 で ID ごとに detail を書いてから `not_affected` にする。
 
-- offscreen、webview、DevTools、拡張、USB/HID、カスタムプロトコル、`net.fetch`、ログイン項目、クリップボード、PowerMonitor、Squirrel.Mac: GHSA-532v-xpq5-8h95、GHSA-8x5q-pvf5-64mp、GHSA-h3v5-h239-pg29、GHSA-pfmc-3mgc-p6fp、GHSA-9qh4-3jw8-366w、GHSA-4f78-qhmw-8j8m、GHSA-f2r8-jv7c-xqmp、GHSA-98mx-cjp9-gchm、GHSA-m55f-7gqj-fr98、GHSA-9899-m83m-qhpj、GHSA-fw47-9c62-h3vw、GHSA-4p4r-m79c-wq3v、GHSA-j84w-jfhq-vhvj、GHSA-v3j7-r9gq-3gjw、GHSA-v64r-4m7r-3mvq、GHSA-5rqw-r77c-jp79、GHSA-jfqx-fxh3-c62j、GHSA-mwmh-mq4g-g6gr、GHSA-f37v-82c4-4x64、GHSA-jjp3-mq3x-295m、GHSA-vv43-5jgx-7qv8、GHSA-3c8v-cfp5-9885、GHSA-5c9j-mhmv-5xgx、GHSA-xj5x-m3f3-5x3h、GHSA-xwr5-m59h-vwqr、GHSA-9w97-2464-8783、GHSA-9wfr-w7mm-pc7f、GHSA-3qxv-5xgr-q7w9、GHSA-jr5w-w6x2-84p9、GHSA-jm7p-cc5g-qwxx、GHSA-x8rc-wpg4-grpf、GHSA-2p8c-gr87-2676
-- GHSA-vmqv-hx8q-j7mg（ASAR 完全性の回避）は、`embeddedAsarIntegrityValidation` と `onlyLoadAppFromAsar` の fuse を有効にしたアプリだけが対象。今は fuse が無く、この CVE の対象外。fuse を付ける作業は、修正済み Electron へ上げた後に行う。
-- 権限ハンドラをインストールしていないため、ハンドラへ渡る origin の取り違え（GHSA-8337-3p73-46f4、GHSA-9pf5-hg6p-4pwp、GHSA-r5p7-gp4j-qhrx、GHSA-x562-297c-g43g）も現行コードでは非該当。拒否ハンドラを足すときは、その不具合が直った Electron 上で足す。
+- 次の ID は、アドバイザリが特定の API や `webPreferences` を条件にしている。`desktop/src` はその API を呼んでいない。正当化の候補は `requires_configuration`（その設定が要る）か、呼ばない経路だと説明できるときの `code_not_reachable` である。detail にアドバイザリの条件と、リポジトリの該当ファイルを書く。`code_not_present` は使わない: GHSA-532v-xpq5-8h95、GHSA-8x5q-pvf5-64mp、GHSA-h3v5-h239-pg29、GHSA-pfmc-3mgc-p6fp、GHSA-9qh4-3jw8-366w、GHSA-4f78-qhmw-8j8m、GHSA-f2r8-jv7c-xqmp、GHSA-98mx-cjp9-gchm、GHSA-m55f-7gqj-fr98、GHSA-9899-m83m-qhpj、GHSA-fw47-9c62-h3vw、GHSA-4p4r-m79c-wq3v、GHSA-j84w-jfhq-vhvj、GHSA-v3j7-r9gq-3gjw、GHSA-v64r-4m7r-3mvq、GHSA-5rqw-r77c-jp79、GHSA-jfqx-fxh3-c62j、GHSA-mwmh-mq4g-g6gr、GHSA-f37v-82c4-4x64、GHSA-jjp3-mq3x-295m、GHSA-vv43-5jgx-7qv8、GHSA-3c8v-cfp5-9885、GHSA-5c9j-mhmv-5xgx、GHSA-xj5x-m3f3-5x3h、GHSA-xwr5-m59h-vwqr、GHSA-9w97-2464-8783、GHSA-9wfr-w7mm-pc7f、GHSA-3qxv-5xgr-q7w9、GHSA-jr5w-w6x2-84p9、GHSA-jm7p-cc5g-qwxx、GHSA-x8rc-wpg4-grpf、GHSA-2p8c-gr87-2676
+- GHSA-vmqv-hx8q-j7mg（ASAR 完全性の回避）は、二つの fuse を有効にしたアプリだけが対象と書いている。正当化は `requires_configuration`。今は fuse が無い。コードがバイナリから消えたわけではない。fuse を付ける作業は、修正済み Electron へ上げた後に行う。
+- 権限ハンドラへ渡る origin の取り違え（GHSA-8337-3p73-46f4、GHSA-9pf5-hg6p-4pwp、GHSA-r5p7-gp4j-qhrx、GHSA-x562-297c-g43g）は、ハンドラをインストールしていることが条件である。正当化は `requires_configuration`。拒否ハンドラを足すときは、その不具合が直った Electron 上で足す。
 
 潜伏（パターンはある。現行の逃げた HTML と sandbox ではスクリプトも外部 URL も乗らない）。上げる作業と一緒に塞ぐ。
 
@@ -71,9 +72,9 @@ OSV が lockfile に返した Electron 以外は次だけである。直接依�
 
 - GO-2026-5970 / CVE-2026-56852。`unicode/norm` の不正 UTF-8 で無限ループ。修正 v0.39.0。
 - GO-2026-6629 / CVE-2026-56851。`secure/precis` の Nickname が短いバッファで panic。修正 v0.41.0。
-- 本番 import は Shift_JIS と `transform` だけ。`govulncheck`（Go 1.27.3、`core` で `./...`）は脆弱性なし。モジュール全体をソーススキャンすると 2 件出る。電話を鳴らすのは後者のスキャナをゲートにした場合だけなので、VEX と govulncheck の到達性で止める。上げるなら v0.41.0 以上をまとめて vendor し、警告そのものを消す。
+- 本番 import は Shift_JIS と `transform` だけ。`govulncheck`（Go 1.27.3、`core` で `./...`）は脆弱性なし。モジュール自体はランタイム SBOM の成分として残す（下の Phase 1）。`not_affected` にするときの justification は `code_not_reachable` であり、モジュールを SBOM から消すことでも `code_not_present` でもない。上げるなら v0.41.0 以上をまとめて vendor し、成分の版とハッシュを更新する。
 
-Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV の `stdlib` 1.27.3 は 0 件。`go-version: stable` のままなので、次のタグは別のパッチになり得る。SBOM にはそのとき入った `go version -m` の版を書く。言語行 `go 1.23` は最小言語版であり、標準ライブラリの版ではない。
+Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV の `stdlib` 1.27.3 は 0 件。`go-version: stable` のままなので、次のタグは別のパッチになり得る。ランタイム SBOM では、そのビルドの版を `pkg:golang/stdlib@<版>` の library 成分にする。言語行 `go 1.23` は最小言語版であり、標準ライブラリの版ではない。
 
 `desktop/package.json` の `allowScripts` は electron と esbuild だけを許可する意図だが、CI の `npm ci` はこれを強制しない。lockfile で `hasInstallScript` があるのは `electron`、`esbuild`、任意の `fsevents` だけで、意図とは一致している。将来の推移的依存がスクリプトを足しても CI は気づかない。
 
@@ -129,12 +130,16 @@ Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV �
 
 1. ビルド入力（PR の作業用、Release の本体にはしない）
    - `desktop/package-lock.json` 全体。Electron は devDependency だが実行系そのものなので、`omit dev` で落としてはいけない。
-   - Go は `cmd/etherscribe` から辿ったモジュールグラフと、ビルドに使った `go version`。`core/third_party/text` の全ファイルや、`go.sum` のテスト専用（`go-cmp`、`x/tools` など）を成分にしない。`govulncheck` が「脆弱性なし」とした事実と、モジュール版 v0.33.0 がバイナリの build info に出ることの両方を残す。
+   - Go は `cmd/etherscribe` から辿ったモジュールグラフと、ビルドに使った Go の版。`core/third_party/text` のソースファイルを 1 ファイルずつ成分にしない。`go.sum` のテスト専用（`go-cmp`、`x/tools` など）も成分にしない。ランタイム SBOM が持つモジュール成分（次項）と、このビルド入力は同じ purl を指す。
 2. 配布ランタイム（Release に付けるもの）
    - アプリ版。
-   - Electron 実行系（npm 版、Chromium、Node）。
+   - Electron 実行系（npm 版、Chromium、Node）。purl は `pkg:npm/electron@<版>`。
    - `app.asar` のハッシュ。中の node_modules 展開はしない。verify の許可リスト上、中身は UI と main/preload と package.json だけである。
-   - `extraResources/engine` のバイナリハッシュと `go version -m`。
+   - `extraResources/engine` のファイル成分（バイナリの SHA-256）。`go version -m` の原文はこのファイル成分の証拠に残す。モジュール成分の代わりにはしない。
+   - `go version -m` が列挙する各モジュールを、ファイル成分とは別の `type: library` にする。標準ライブラリと、replace された `golang.org/x/text` を必ず含める。サブパッケージ（`unicode/norm` など）には分けない。モジュール 1 つが成分 1 つである。各成分は次を持つ。
+     - `name` と `version`。replace のディレクトリ名ではなく、ビルド info のモジュールパスと版。現行なら `golang.org/x/text` と `v0.33.0`、標準ライブラリはビルドに使った版（v1.0.0 の実績は `1.27.3`）。
+     - `purl`。`pkg:golang/golang.org/x/text@v0.33.0`、標準ライブラリは `pkg:golang/stdlib@v1.27.3`。週次の再スキャンはこの purl を OSV へ照会する。
+     - `hashes` の SHA-256 と、プロパティ `cdx:go:module-hash`。値は Go のモジュール dirhash（`h1:` + base64）。`hashes[].content` には、その base64 を復号したダイジェストを十六進で書く。`go version -m` に `h1:` が無い replace モジュールは、リンクしたツリー（`x/text` なら `core/third_party/text`）から `dirhash.Hash1` を計算して同じ二つを埋める。このハッシュはモジュールのファイル一覧のものであり、エンジンバイナリの SHA-256 ではない。
    - 既に同梱している 3 つのライセンスファイルをライセンス証拠として。
    - Windows ZIP、Mac ZIP、Mac DMG のハッシュ。既存の `SHA256SUMS.txt` と同じ値にする。
 
@@ -163,28 +168,45 @@ Actions の artifact はエンジン 7 日、デスクトップ 14 日で消え�
 | `osv-scanner` の lockfile モード | npm。PR では新規の実行系（Electron）だけを失敗候補にし、tar / glob / minimatch は VEX |
 | Dependency Review Action | 公開リポジトリで追加料金なし。PR が lockfile に足したパッケージだけを Codex と電話に見せる |
 
-Dependabot は `npm` と `github-actions` だけ有効にする。Go は `replace` のローカルツリーなので、Dependabot の gomod 更新に期待しない。x/text の追従は Phase 3 の再スキャンか、明示的な vendor 更新 PR にする。Dependabot のセキュリティ PR は、VEX 済みのビルド専用 CVE では作らせない（無視ルールに ID を書く）。
+Dependabot のバージョン更新は `npm` と `github-actions` だけ有効にする。Go は `replace` のローカルツリーなので、gomod の自動更新には期待しない。x/text の追従は、Phase 3 がランタイム SBOM の purl を再照会するか、明示的な vendor 更新 PR で行う。
+
+脆弱性の扱いと、バージョン更新の無視は別の台帳にする。
+
+- 台帳 A はアドバイザリ単位の triage と VEX である。一件の GHSA / CVE を `docs/security/vex.cdx.json` に書く。GitHub の Dependabot alert を閉じるときも、その alert だけを閉じる。同じパッケージの次の CVE は新しい alert として残る。
+- 台帳 B は `dependabot.yml` の `ignore` である。キーは `dependency-name` と、任意の `versions` または `update-types` だけである。脆弱性 ID を ignore のキーにしない。このスキーマに GHSA や CVE の欄は無い。パッケージ名だけを ignore して、その依存の今後の CVE まで見えなくしない。ignore を書くときは、版の範囲か `update-types`（例: `version-update:semver-patch`）まで指定し、コメントに「バージョン更新の騒音であり、CVE の判断ではない」と書く。
+- VEX 済みのビルド専用 CVE を、`ignore` で黙らせない。tar や minimatch を依存名だけで ignore しない。
 
 ### VEX
 
-CycloneDX VEX。状態は `not_affected` を主に使う。正当化は次のどちらか。
+CycloneDX 1.6 の `vulnerabilities[].analysis` を使う。`state` が `not_affected` のとき、`justification` は仕様の列挙だけを使う。OpenVEX の `vulnerable_code_not_present` と `vulnerable_code_not_in_execute_path` は書かない。
 
-- `vulnerable_code_not_present`: 機能が無い、配布物に入らない、AppImage を作っていない、electron-builder にトークンを渡していない。
-- `vulnerable_code_not_in_execute_path`: x/text の norm / precis。根拠は `govulncheck` の「脆弱性なし」と、本番 import が `encoding/japanese` と `transform` だけであること。
+| justification | 仕様上の意味 | このリポジトリで使ってよい場面 |
+| --- | --- | --- |
+| `code_not_present` | 脆弱なコードが成果物から除かれている | そのパッケージがランタイム SBOM に無く、配布 asar にも無いとき。例: tar、extract-zip、glob、minimatch の JS。Electron の未使用 API には使わない |
+| `code_not_reachable` | コードは成果物にあるが、実行時に呼ばれない | `govulncheck` が到達なしとした Go のシンボル。例: モジュール成分として残す `golang.org/x/text` の norm / precis。detail に import と govulncheck の版を書く |
+| `requires_configuration` | 悪用に特定の設定のオンまたはオフが要る | アドバイザリが API、`webPreferences`、fuse を条件にしており、その設定が `desktop/src` に無いとき。例: GHSA-vmqv-hx8q-j7mg |
+| `requires_dependency` | 悪用に、存在しない依存が要る | 条件の依存がランタイム SBOM の purl に無いとき。未使用機能の言い換えには使わない |
+| `requires_environment` | 悪用に、存在しない環境が要る | 例: GHSA-h7rp-cf8h-j98x は信頼できない文書をそのウィンドウへ載せることが条件で、本番はローカルの自前 UI である。AppImage 向け GHSA は、公開物が ZIP/DMG であるとき |
+| `protected_at_runtime` | 実行時に悪用が止まる | アドバイザリが実行時の防御を条件にしており、その防御がコードにあるとき |
+| `protected_by_mitigating_control` | 緩和策が当たっている | 生成 HTML のエスケープと iframe の `sandbox=""` のように、出力側の制御で発動条件を満たさないとき。制御のファイル名を detail に書く |
+| `protected_by_compiler` | コンパイラフラグが要る | このリポジトリの現行判断では使っていない |
+| `protected_at_perimeter` | 境界で止まっている | このリポジトリの現行判断では使っていない |
 
-`affected` のまま放置して通知だけ弱くする、は使わない。鳴らない理由を文書に残す。新しい High で VEX が無いものだけを、週次ジョブが issue にする。Codex レビューでは VEX の追加を、アドバイザリの「影響を受ける条件」とこのリポジトリのコードの両方に照らして見る。
+`not_affected` の各エントリは、`analysis.detail` に次の三つを書く。アドバイザリが述べる影響条件。このリポジトリのどのファイルがその条件を満たすか、満たさないか。選んだ justification がその条件に対して主張すること。三つを書けない ID は `not_affected` にしない。`in_triage` のまま週次の issue に残す。
 
-初期判断は上の A に書いた。機械可読ファイルは Phase 2 で、この表を写す。
+Electron の GHSA を機能未使用の一括理由で `code_not_present` にしない。週次スキャンは、モジュールと Electron の purl が SBOM にある限り、その成分を照会し続ける。VEX は通知を止める判断であり、成分を SBOM から消す操作ではない。
+
+Codex レビューでは、追加された VEX を、アドバイザリの影響条件、上記の列挙、リポジトリの該当行の三つが一致するときだけ受け入れる。
 
 ### 段階
 
 Phase 0。この文書。ツールは入れない。
 
-Phase 1。タグの公開ジョブがランタイム CycloneDX を作り、Release に載せる。失敗条件は「SBOM が 3 配布物のハッシュと `SHA256SUMS.txt` と一致しない」ことであり、CVE の有無では落とさない。可能なら artifact attestation も付ける。ビルド入力の SBOM は Actions artifact に残すだけで、Release には混ぜない。
+Phase 1。タグの公開ジョブがランタイム CycloneDX を作り、Release に載せる。失敗条件は二つある。3 配布物のハッシュが `SHA256SUMS.txt` と一致しないこと。そして `go version -m` の各モジュール、少なくとも `pkg:golang/stdlib@<ビルドの版>` と `pkg:golang/golang.org/x/text@<リンクした版>` が、purl と SHA-256 を持つ library 成分として欠けていること。エンジンファイルのハッシュだけがある SBOM は失敗にする。CVE の有無では落とさない。可能なら artifact attestation も付ける。ビルド入力の SBOM は Actions artifact に残すだけで、Release には混ぜない。
 
-Phase 2。Electron をサポート中の系列へ上げた後に、PR ゲートを足す。`govulncheck`、`osv-scanner`、Dependency Review。失敗は「VEX に無く、実行系（Electron か、エンジンが到達する Go）の新規問題」だけ。`docs/security/vex.cdx.json` をこの段階でコミットする。
+Phase 2。Electron をサポート中の系列へ上げた後に、PR ゲートを足す。`govulncheck`、`osv-scanner`、Dependency Review。失敗は「VEX に無く、実行系（Electron の purl か、ランタイム SBOM に載る Go モジュールの purl）の新規問題」だけ。`docs/security/vex.cdx.json` をこの段階でコミットする。justification は上の表以外を受け付けない。
 
-Phase 3。週 1 回、最新 Release のランタイム SBOM を `osv-scanner --sbom` で読み直す。非該当でない High 以上だけ issue を開く。毎日にしない。利用者の手元にある版を見るのが目的で、main の lockfile だけを見ても署名前の作業ツリーとずれる。
+Phase 3。週 1 回、最新 Release のランタイム SBOM を `osv-scanner --sbom` で読み直す。照会対象は SBOM 内の purl である。`pkg:golang/golang.org/x/text@...` が成分にあるので、x/text の新しいアドバイザリはこの再スキャンに乗る。バイナリハッシュや `go version -m` の文章だけではヒットしたことにしない。モジュール成分が欠けた SBOM はスキャン成功と扱わず、欠落を issue にする。`not_affected` の detail が無い High 以上だけ、脆弱性の issue を開く。毎日にしない。利用者の手元にある版を見るのが目的で、main の lockfile だけを見ても署名前の作業ツリーとずれる。
 
 ### まだやらないこと
 
@@ -193,5 +215,5 @@ Phase 3。週 1 回、最新 Release のランタイム SBOM を `osv-scanner --
 - `npm audit` と osv-scanner の併用。CI の `npm ci --no-audit` は、監査を osv-scanner に寄せる前提で維持してよい。
 - 46 件すべてで PR を赤くすること。上げる PR の前にゲートを入れると、電話がノイズで埋まる。
 - 生成 SBOM の git コミット。
-- vendored x/text の全パッケージを実行系成分にすること。
+- vendored x/text のサブパッケージを成分にばらすこと。モジュール 1 成分（purl とハッシュ）は Phase 1 の必須であり、この禁止には入らない。
 - クラウドエージェントでの署名、公証、実設定を使った秘匿の確認。
