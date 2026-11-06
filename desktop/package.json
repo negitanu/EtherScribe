@@ -68,19 +68,18 @@
     },
     "artifactName": "EtherScribe-${version}-${os}-${arch}.${ext}",
     "asar": true,
-    "afterPack": "../scripts/sign-mac.cjs"
+    "afterPack": "build/sign-mac.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "electron": "^33.2.0",
-    "electron-builder": "^25.1.8",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.1",
     "typescript": "^5.7.2",
     "vite": "^6.0.3",
     "vite-plugin-electron": "^0.28.8",
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "allowScripts": {
-    "electron@33.4.11": true,
     "esbuild@0.25.12": true
   }
 }
