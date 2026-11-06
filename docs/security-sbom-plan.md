@@ -2,11 +2,40 @@
 
 調査日: 2026-11-05。アプリケーションの動作は変えていない。照会先は OSV（GHSA / Go vuln DB を含む）と Electron の公開リリース情報。NVD を一次ソースにはしていない。
 
-この文書は Phase 0 の棚卸しである。実装は別の OpenSpec 変更で行う。
+この文書は Phase 0 の棚卸しである。Electron の上げは 2026-11-06 の変更で行った。残りの実装は別の OpenSpec 変更で行う。
+
+## 実施状況（2026-11-06）
+
+main の lockfile は Electron 45.2.3（Chromium 156.0.8078.80、Node 24.22.2）と electron-builder 26.18.1 である。公開済み Release v1.0.0 の ZIP / DMG は 33.4.11 のままなので、利用者が受け取る実行系が替わるのは次のタグからである。
+
+選定は公式スケジュール（2026-11-06）による。サポート対象は 43（EOL 2027-01-05）、44（EOL 2027-03-02）、45（EOL 2027-04-27）。46 は alpha で、安定予定は 2027-01-05 なので採用していない。残サポートが最も長い最新安定として 45.2.3 を選んだ。npm の `latest` も 45.2.3 である。electron-builder は 26 系の最新 26.18.1（`app-builder-lib` 26.18.1、`builder-util-runtime` 9.7.1）。AppImage は作らないが、計画どおり 26.15.0 以降に揃えた。`vite-plugin-electron` は `vite.config.ts` が使っておらず、Electron の peer も無いので上げていない。
+
+この変更で閉じたもの:
+
+- `pkg:npm/electron@33.4.11` の OSV 46 件。2026-11-06 の再照会で `pkg:npm/electron@45.2.3` は 0 件。
+- `app-builder-lib` の AppImage 向け GHSA-7g7r-gx96-252g（修正 26.15.0）と、`builder-util-runtime` の GHSA-p2f4-r6v6-j797（修正 9.7.0）。lockfile の該当パッケージは修正版以上で、同じ照会に出ない。
+- `tar@6.2.1` の 12 件。lockfile は `tar@7.5.22` になり、OSV の lockfile スキャンに出ない。
+- `extract-zip@2.0.1`。依存から外れ、Electron の展開は `@electron-internal/extract-zip@1.0.8`。
+- `glob@10.5.0` の GHSA-3g3m-2fjr-6pw4。残る glob は 7.2.3 で、このアドバイザリの範囲外である。
+
+まだ lockfile に残る npm の OSV は `minimatch@9.0.9` と `@10.2.6` の GHSA-g3hv-75wg-m249（7.0.0 以上 11.0.1 未満）だけである。`@electron/asar`、`@electron/universal`、`app-builder-lib`、`filelist` が使うビルド時の ReDoS で、配布 asar には入らない。`npm audit` は moderate 6 件で、依存関係の表示はすべてこの minimatch に行き着く。監査が提案する修正は electron-builder 24.13.3 へのダウングレードなので採用していない。
+
+破壊的変更は Electron 34 から 45 の公式一覧を、`desktop/src` の呼び出しに照らした。
+
+- 残している境界は `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`。IPC は `ipcMain.handle`、`ipcRenderer.invoke`、`ipcRenderer.on`、`contextBridge.exposeInMainWorld`。ダイアログは `showOpenDialog` と `showSaveDialog`。remote、BrowserView、`webContents.getPrinters`、旧 `protocol.register*Protocol`、同期 `safeStorage`、renderer からの clipboard は呼んでいない。
+- Electron 45 は sandbox 済み preload から Node の `events` / `timers` / `url` シムと、`Buffer` / `setImmediate` / `clearImmediate` を削除した。`require` が読めるのは `electron` だけである。コンパイル後の `preload.js` は `require("electron")` だけで、この削除には当たらない。`ipcRenderer` の EventEmitter はネイティブ実装に替わったが、`on` と `invoke` の使い方は同じである。
+- Electron 43 は `defaultPath` を省略したダイアログの初期ディレクトリを Downloads にする。このアプリはファイル名を `defaultPath` に渡すので、省略時の変更には当たらない。OS のファイルダイアログが最初に開くフォルダは、この VM では未確認である。ヘッドレスのスモークはダイアログを差し替えている。
+- Electron 42 以降、`electron` の npm パッケージに postinstall は無い。バイナリは最初の `electron` 起動時に公式 zip を取得する。`npm ci` はその zip を置かない。パッケージングは electron-builder が別途取得する。`package.json` の `allowScripts` から `electron@33.4.11` を外した。ホストの Node は `>= 22.12.0` が要る。CI の `node-version: '22'` は、2026-11-06 の最新 22 なら満たす。この VM は 22.23.4 だった。
+- electron-builder 26 は `afterPack` のパスが `desktop/` の外だと失敗する。入口を `desktop/build/sign-mac.cjs` にし、実体は従来の `scripts/sign-mac.cjs` を呼ぶ。darwin 以外は何もしない ad-hoc のままである。Developer ID、公証、Authenticode は付けていない。`mac.identity: null` と `win.signAndEditExecutable: false` もそのままである。
+- lockfile の `hasInstallScript` は `esbuild@0.25.12`、任意の `fsevents@2.3.3`（darwin）、`electron-winstaller@5.4.0` である。最後のスクリプトは同梱の 7-Zip をホスト arch 向けにコピーするだけで、Squirrel 用である。公開ターゲットは ZIP / DMG なので、このスクリプトは配布物を作る経路では使わない。対応リスト 6 の CI 検査は未着手で、検査を入れるときはこの 3 つを想定する。
+
+Linux では `./scripts/build.sh`（`electron-builder --dir`、Electron 45.2.3）が通り、その後の Xvfb スモークは終了コード 0 と `PASS real Electron IPC` だった。D-Bus 接続失敗は出るが、検査は完走する。electron-builder 26 が Mac の `.app` に入れる `LICENSE.electron.txt` と `LICENSES.chromium.html` は、`verify-release` の許可リストに加えた。ファイル選択から差分までの実機操作と、署名後の Gatekeeper / SmartScreen は未確認である。
+
+対応リストの 1 はこの変更で閉じる。2 以降（ナビゲーションと権限の拒否、fuse、x/text、Go 版の固定、install script の CI、公開ノート、SBOM）は未着手である。ウィンドウ境界と fuse は、上げたあとに塞ぐ予定のまま残している。
 
 ## 結論
 
-出荷しているデスクトップの実行系は Electron 33.4.11（Chromium 130.0.6723.191、Node 20.18.3）で、公式サポートは 2025-04-28 に終わっている。2026-11-05 時点のサポート対象は 43 / 44 / 45 で、npm の `latest` は 45.2.3。OSV はこの 33.4.11 に Electron の GHSA を 46 件返す。大半は今の機能（offscreen、webview、拡張、カスタムプロトコル、ログイン項目など）を使っておらず、個別に電話を鳴らす対象ではない。対応の本体は、サポート中の系列へ上げること。
+2026-11-05 時点で出荷していたデスクトップの実行系は Electron 33.4.11（Chromium 130.0.6723.191、Node 20.18.3）で、公式サポートは 2025-04-28 に終わっている。同日時点のサポート対象は 43 / 44 / 45 で、npm の `latest` は 45.2.3。OSV はこの 33.4.11 に Electron の GHSA を 46 件返す。大半は今の機能（offscreen、webview、拡張、カスタムプロトコル、ログイン項目など）を使っておらず、個別に電話を鳴らす対象ではない。対応の本体は、サポート中の系列へ上げることであり、2026-11-06 に main の lockfile を 45.2.3 へ更新した。公開物 v1.0.0 は未更新である。
 
 Go エンジンは別である。v1.0.0 の CI は `go1.27.3` でビルドし、同じ版で `govulncheck ./...` を 2026-11-05 に実行した結果は脆弱性なし。OSV が `golang.org/x/text@v0.33.0` に出す 2 件は、本体が import していないパッケージである。
 
@@ -17,7 +46,7 @@ Go エンジンは別である。v1.0.0 の CI は `go1.27.3` でビルドし、
 | Go | `core/go.mod` は Go 1.23、要求は `golang.org/x/text v0.33.0`、`replace` で `core/third_party/text`。本番 import は `encoding/japanese` と `transform` のみ（`core/internal/ingest/encoding.go`） |
 | エンジンビルド | `scripts/build-engine.mjs` は `CGO_ENABLED=0`、`-trimpath`、`-buildvcs=false`、`GOPROXY=off` |
 | npm | `desktop/package-lock.json` lockfileVersion 3。直接依存はすべて devDependency。421 個の一意なパッケージを OSV に照会 |
-| 実行系 | Electron 33.4.11、electron-builder 25.1.8、Vite 6.4.5、esbuild 0.25.12、TypeScript 5.9.3 |
+| 実行系 | 調査時点は Electron 33.4.11、electron-builder 25.1.8、Vite 6.4.5、esbuild 0.25.12、TypeScript 5.9.3。2026-11-06 以降の lockfile は実施状況のとおり |
 | 配布 | Windows x64 ZIP、Mac arm64 ZIP / DMG。`app.asar` と `extraResources` のエンジン、Go と x/text のライセンス。`scripts/verify-release.mjs` が許可リストを検査 |
 | CI | `.github/workflows/release.yml`。Actions はコミット SHA 固定。2026-11-05 に各タグの SHA が公式の checkout/setup-go/setup-node/upload-artifact v7 と download-artifact v8 と一致することを確認 |
 | 公開物 | Release `v1.0.0`（2026-10-25）。タグ CI の Go は `go1.27.3` |
@@ -28,7 +57,9 @@ Go エンジンは別である。v1.0.0 の CI は `go1.27.3` でビルドし、
 
 ### 高: サポート切れの Electron を配布している
 
-- 証拠: `desktop/package-lock.json` の `electron@33.4.11`。Electron 公式リリースは、この版を 2025-04-26 出荷、Chromium 130.0.6723.191 / Node 20.18.3 とし、33 系はサポート終了と明記している。サポート終了日は 2025-04-28。v1.0.0 の公開は 2026-10-25 で、終了から約 18 か月後である。
+2026-11-06 に main の lockfile は 45.2.3 へ上がり、この所見の lockfile 側は閉じた。公開済み v1.0.0 のバイナリは 33.4.11 のままである。以下は上げる前の記録である。
+
+- 証拠（上げる前）: `desktop/package-lock.json` の `electron@33.4.11`。Electron 公式リリースは、この版を 2025-04-26 出荷、Chromium 130.0.6723.191 / Node 20.18.3 とし、33 系はサポート終了と明記している。サポート終了日は 2025-04-28。v1.0.0 の公開は 2026-10-25 で、終了から約 18 か月後である。
 - OSV（2026-11-05）: `pkg:npm/electron@33.4.11` に 46 件。修正版は概ね 38 系以降で、33 系には戻っていない。
 - 今のアプリが実際に使っている境界は強い。`desktop/src/main/main.ts` は `contextIsolation: true`、`nodeIntegration: false`、`sandbox: true`。描画側 CSP は `script-src 'self'`。プレビュー iframe は `sandbox=""`。生成 HTML は `html.EscapeString`、Excel は数式ではなく `inlineStr`。本番はローカルの `index.html` だけを開く。
 - 46 件を、アプリがその API を呼んでいないという理由で `code_not_present` にまとめない。脆弱なコードは Electron のバイナリに含まれたままである。未使用の機能は、脆弱なコードが成果物から除かれたことではない。VEX の列挙値と、一件ごとの `analysis.detail` は下の「VEX」に従う。条件を detail に書けない ID は `in_triage` のままにする。
@@ -41,23 +72,25 @@ Go エンジンは別である。v1.0.0 の CI は `go1.27.3` でビルドし、
 - GHSA-vmqv-hx8q-j7mg（ASAR 完全性の回避）は、二つの fuse を有効にしたアプリだけが対象と書いている。正当化は `requires_configuration`。今は fuse が無い。コードがバイナリから消えたわけではない。fuse を付ける作業は、修正済み Electron へ上げた後に行う。
 - 権限ハンドラへ渡る origin の取り違え（GHSA-8337-3p73-46f4、GHSA-9pf5-hg6p-4pwp、GHSA-r5p7-gp4j-qhrx、GHSA-x562-297c-g43g）は、ハンドラをインストールしていることが条件である。正当化は `requires_configuration`。拒否ハンドラを足すときは、その不具合が直った Electron 上で足す。
 
-潜伏（パターンはある。現行の逃げた HTML と sandbox ではスクリプトも外部 URL も乗らない）。上げる作業と一緒に塞ぐ。
+次の ID は 33.4.11 の記録である。45.2.3 の OSV 照会には出ない。`setWindowOpenHandler` と `setPermissionRequestHandler` が無いことは対応リスト 2 として残っており、この上げでは塞いでいない。当時の出力は、逃げた HTML と sandbox ではスクリプトも外部 URL も乗らない。
 
 - GHSA-h7rp-cf8h-j98x、GHSA-ff2p-hmqr-hxm4: `contextBridge` と Promise。本番はローカルの自前 UI。
 - GHSA-9f4c-93c8-jc8g、GHSA-p2rr-rvmm-c5fp、GHSA-gr2m-v5gq-v685、GHSA-hq2x-r82h-9wj4、GHSA-997q-gvvc-jwmx、GHSA-f3pv-wv63-48x8、GHSA-v93f-fgjr-hjrj: sandbox iframe からの window / 外部プロトコル。`setWindowOpenHandler` と `setPermissionRequestHandler` が無いので、既定では外部起動が許可され得る。生成 HTML は設定値をテキストノードへエスケープしており、今の出力に攻撃者のタグは乗らない。
 
 ### 中: 署名が無く、ウィンドウ境界も閉じていない
 
-- 署名: `desktop/package.json` は Mac `identity: null`、Windows `signAndEditExecutable: false`。CI は `CSC_IDENTITY_AUTO_DISCOVERY=false`。`scripts/sign-mac.cjs` は ad-hoc（`codesign -`）だけで、公証もタイムスタンプも無い。Release notes と `docs/release-process.md` に制約として書いてある。Gatekeeper と SmartScreen は発行元を確認できない。チェックサムは GitHub Release 上の `SHA256SUMS.txt` までで、署名された証明ではない。
+- 署名: `desktop/package.json` は Mac `identity: null`、Windows `signAndEditExecutable: false`。CI は `CSC_IDENTITY_AUTO_DISCOVERY=false`。`scripts/sign-mac.cjs` は ad-hoc（`codesign -`）だけで、公証もタイムスタンプも無い。electron-builder 26 以降の入口は `desktop/build/sign-mac.cjs` で、中身は同じスクリプトである。Release notes と `docs/release-process.md` に制約として書いてある。Gatekeeper と SmartScreen は発行元を確認できない。チェックサムは GitHub Release 上の `SHA256SUMS.txt` までで、署名された証明ではない。
 - 開発 URL: `main.ts` は `VITE_DEV_SERVER_URL` があればパッケージ済みでも `loadURL` する。そのページには preload の API が載る。通常の配布物の起動では空である。
 - ナビゲーションと権限の拒否が無い。上の潜伏項目と同じ穴である。
-- Electron fuse（asar 完全性、`RunAsNode` 無効、inspect と `NODE_OPTIONS` の無効化）が無い。署名が無い状態ではローカル改ざんを暗号では止められない。fuse は署名の代わりにはならないが、上げた後の次の段である。
+- Electron fuse（asar 完全性、`RunAsNode` 無効、inspect と `NODE_OPTIONS` の無効化）が無い。署名が無い状態ではローカル改ざんを暗号では止められない。fuse は署名の代わりにはならない。実行系は 45.2.3 になったので、対応リスト 3 として次に付けられる。この上げでは付けていない。
 
 この VM では Apple / Windows の証明書も、署名した実機確認もできない。
 
 ### 低: ビルド時の依存と、到達しない Go モジュール
 
-OSV が lockfile に返した Electron 以外は次だけである。直接依存の electron-builder 25.1.8、Vite 6.4.5、esbuild 0.25.12、TypeScript 5.9.3 自体は 0 件。
+次の表は 2026-11-05 の lockfile である。Electron と electron-builder を上げたあとの残りは、上の実施状況にある（minimatch の 1 件だけが OSV に残る）。
+
+OSV が当時の lockfile に返した Electron 以外は次だけである。直接依存の electron-builder 25.1.8、Vite 6.4.5、esbuild 0.25.12、TypeScript 5.9.3 自体は 0 件だった。
 
 | パッケージ | 件数 | 判断 |
 | --- | --- | --- |
@@ -76,7 +109,7 @@ OSV が lockfile に返した Electron 以外は次だけである。直接依�
 
 Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV の `stdlib` 1.27.3 は 0 件。`go-version: stable` のままなので、次のタグは別のパッチになり得る。ランタイム SBOM では、そのビルドの版を `pkg:golang/stdlib@<版>` の library 成分にする。言語行 `go 1.23` は最小言語版であり、標準ライブラリの版ではない。
 
-`desktop/package.json` の `allowScripts` は electron と esbuild だけを許可する意図だが、CI の `npm ci` はこれを強制しない。lockfile で `hasInstallScript` があるのは `electron`、`esbuild`、任意の `fsevents` だけで、意図とは一致している。将来の推移的依存がスクリプトを足しても CI は気づかない。
+2026-11-05 時点の `allowScripts` は electron と esbuild だけを許可する意図だが、CI の `npm ci` はこれを強制しない。当時の lockfile で `hasInstallScript` があるのは `electron`、`esbuild`、任意の `fsevents` だけだった。2026-11-06 の lockfile では内訳が変わっている。上の実施状況を参照する。将来の推移的依存がスクリプトを足しても CI は気づかない。
 
 公開ジョブのリリースノートは `docs/releases/v1.0.0.md` に固定されている。次のタグでも同じファイルを読む。
 
@@ -88,13 +121,13 @@ Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV �
 - エンジンは stdio の子プロセス。待受ポートは無い。デスクトップの本番コードに外向き通信は無い。
 - 依存のダウンロードを狭めている。Go は `GOPROXY=off` とローカル replace。npm は lockfile の `npm ci`。Actions は SHA 固定。ジョブ権限は `contents: read`、公開ジョブだけ `contents: write`。`persist-credentials: false`。
 - `scripts/audit-release.py` が追跡ファイルと履歴の鍵・トークン形、機微パス、原典 blob を見る。
-- `extraResources/licenses` は Go と x/text の LICENSE / PATENTS だけを許可している。Electron / Chromium のライセンスはフレームワーク同梱に依存しており、この許可リストにはコピーしていない。
+- `extraResources/licenses` は Go と x/text の LICENSE / PATENTS だけを許可している。electron-builder 26 は、Mac の zip / dmg に入るのが `.app` だけなので、Electron の `LICENSE` と Chromium の `LICENSES.chromium.html` を `Contents/Resources` へ移す。`verify-release` はその 2 ファイル（`LICENSE.electron.txt` と `LICENSES.chromium.html`）を darwin の許可リストに入れ、空ファイルは拒否する。Go のライセンス置き場には混ぜない。
 
 ## B. 対応リスト
 
 ### 電話から頼める（Linux のクラウドエージェントが PR を作り、既存の Windows / Mac CI が梱包を見る）
 
-1. Electron を、作業時点でサポート中の最新安定（調査時点では 45 系、npm `latest` 45.2.3）へ上げる。electron-builder は 26 系（AppImage の修正は 26.15.0 以降。公開物は AppImage ではないが、同じ上げの中で lockfile を更新する）。`npm ci` と両 OS の `verify-release` を通す。GUI の最終クリック確認は下の人間作業。
+1. 完了（2026-11-06、main の lockfile）。Electron 45.2.3 と electron-builder 26.18.1。Linux の `npm ci`、`electron-builder --dir`、Xvfb の IPC スモークは確認した。Windows / Mac の `verify-release` と GUI の最終クリック確認は、CI と下の人間作業に残る。
 2. パッケージ済みでは `VITE_DEV_SERVER_URL` を無視する。`setWindowOpenHandler` で拒否する。`setPermissionRequestHandler` で拒否する。`will-navigate` をローカルファイル（開発時だけ開発サーバ）に限る。これは潜伏項目の塞ぎであり、Electron を上げた同じ変更に載せる。
 3. 上げた後に fuse を付ける。`OnlyLoadAppFromAsar`、`EnableEmbeddedAsarIntegrityValidation`、`RunAsNode` 無効、inspect と `NODE_OPTIONS` 無効。`verify-release` で fuse を見る。fuse を先に 33 系へ付けると、ASAR の GHSA の対象側に入るので、順序は上げてから。
 4. vendored `x/text` を v0.41.0 以上（調査時点の最新は v0.43.0）へ置き、`go test ./...` と `govulncheck ./...` を見る。到達しない 2 件をソーススキャンから消すため。
@@ -148,7 +181,7 @@ Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV �
 両方。ゲートの厳しさは分ける。
 
 - タグの公開（Phase 1 を先にやる）。利用者が受け取る物の SBOM が先。PR が赤くなる仕組みより、Release の横にファイルがある方が一人の配布では役に立つ。
-- PR（Phase 2）。差分の新規ランタイム問題だけを失敗にする。既存の 46 件で main を赤くしない。Electron を上げてからゲートを有効にする。
+- PR（Phase 2）。差分の新規ランタイム問題だけを失敗にする。Electron は 45.2.3 へ上がったので、ゲートを有効にできる状態になった。33.4.11 の 46 件は lockfile から外れている。ゲート自体はこの上げには入れていない。残る minimatch で失敗させない。
 
 Actions の artifact はエンジン 7 日、デスクトップ 14 日で消える。正本は Release の資産であり、リポジトリに生成 SBOM をコミットしない。
 
@@ -213,7 +246,7 @@ Phase 3。週 1 回、最新 Release のランタイム SBOM を `osv-scanner --
 - Dependency-Track や Guac の自前ホスト。常時サーバ、認証、バックアップが、週次の 1 ジョブより重い。顧客がポータルを要求してからでよい。
 - SPDX と CycloneDX の二重生成。
 - `npm audit` と osv-scanner の併用。CI の `npm ci --no-audit` は、監査を osv-scanner に寄せる前提で維持してよい。
-- 46 件すべてで PR を赤くすること。上げる PR の前にゲートを入れると、電話がノイズで埋まる。
+- 33.4.11 にあった Electron の 46 件で PR を赤くすること。それらは 45.2.3 の lockfile からは外れた。PR ゲート自体は Phase 2 のままで、この上げの中には入れていない。残る minimatch で main を赤くしない。
 - 生成 SBOM の git コミット。
 - vendored x/text のサブパッケージを成分にばらすこと。モジュール 1 成分（purl とハッシュ）は Phase 1 の必須であり、この禁止には入らない。
 - クラウドエージェントでの署名、公証、実設定を使った秘匿の確認。

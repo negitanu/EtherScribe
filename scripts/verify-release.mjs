@@ -13,8 +13,16 @@ const app = path.resolve(directory);
 const resources = platform === 'darwin' ? path.join(app, 'Contents/Resources') : path.join(app, 'resources');
 if (!((platform === 'darwin' && arch === 'arm64') || (platform === 'windows' && arch === 'amd64'))) throw new Error('Unsupported release architecture');
 const version = JSON.parse(fs.readFileSync(path.join(root, 'desktop/package.json'))).version;
+const darwinFrameworkLicenses = ['LICENSE.electron.txt', 'LICENSES.chromium.html'];
+const allowed = new Set(['app.asar', 'engine', 'licenses', 'electron.icns', ...(platform === 'darwin' ? darwinFrameworkLicenses : [])]);
 for (const name of fs.readdirSync(resources)) {
-  if (!['app.asar', 'engine', 'licenses', 'electron.icns'].includes(name) && !(platform === 'darwin' && /^[A-Za-z0-9_]+\.lproj$/.test(name))) throw new Error('Unexpected resources entry');
+  if (!allowed.has(name) && !(platform === 'darwin' && /^[A-Za-z0-9_]+\.lproj$/.test(name))) throw new Error(`Unexpected resources entry: ${name}`);
+}
+if (platform === 'darwin') {
+  for (const name of darwinFrameworkLicenses) {
+    const file = path.join(resources, name);
+    if (!fs.existsSync(file) || fs.statSync(file).size === 0) throw new Error('Missing Electron or Chromium license');
+  }
 }
 const licenseSources = {
   'Go-LICENSE.txt': 'core/third_party/go/LICENSE',

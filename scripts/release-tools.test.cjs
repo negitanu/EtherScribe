@@ -17,6 +17,8 @@ async function fixture(change) {
   for (const name of ['dist/index.html', 'dist-electron/main/main.js', 'dist-electron/preload/preload.js']) write(input, name, 'synthetic');
   write(input, 'package.json', JSON.stringify({ name: 'etherscribe', version }));
   write(resources, 'engine/etherscribe', Buffer.alloc(64));
+  write(resources, 'LICENSE.electron.txt', 'electron license');
+  write(resources, 'LICENSES.chromium.html', 'chromium license');
   for (const [name, source] of Object.entries({ 'Go-LICENSE.txt': 'core/third_party/go/LICENSE', 'golang-x-text-LICENSE.txt': 'core/third_party/text/LICENSE', 'golang-x-text-PATENTS.txt': 'core/third_party/text/PATENTS' })) write(resources, 'licenses/' + name, fs.readFileSync(path.join(root, source)));
   try {
     change({ input, resources, write });
@@ -29,6 +31,7 @@ for (const [name, change, expected] of [
   ['reject source maps', ({ input, write }) => write(input, 'dist/main.js.map', '{}'), /Configuration\/source map in app payload/],
   ['reject generated report', ({ input, write }) => write(input, 'dist/report.xlsx', 'DO_NOT_SHIP'), /Unapproved generated file/],
   ['reject environment file', ({ resources, write }) => write(resources, '.env', 'DO_NOT_SHIP'), /Unexpected resources entry/],
+  ['reject missing chromium license', ({ resources }) => fs.rmSync(path.join(resources, 'LICENSES.chromium.html')), /Missing Electron or Chromium license/],
   ['reject mismatched version', ({ input, write }) => write(input, 'package.json', JSON.stringify({ name: 'etherscribe', version: '0.0.0' })), /App version mismatch/],
   ['reject wrong architecture', () => {}, /Expected macOS arm64 executable/],
 ]) test(name, async () => { const result = await fixture(change); assert.equal(result.status, 1); assert.match(result.stderr, expected); });
