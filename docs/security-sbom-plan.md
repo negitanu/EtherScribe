@@ -29,7 +29,7 @@ main の lockfile は Electron 45.2.3（Chromium 156.0.8078.80、Node 24.22.2）
 - electron-builder 26 は `afterPack` のパスが `desktop/` の外だと失敗する。入口を `desktop/build/sign-mac.cjs` にし、実体は従来の `scripts/sign-mac.cjs` を呼ぶ。darwin 以外は何もしない ad-hoc のままである。Developer ID、公証、Authenticode は付けていない。`mac.identity: null` と `win.signAndEditExecutable: false` もそのままである。
 - lockfile の `hasInstallScript` は `esbuild@0.25.12`、任意の `fsevents@2.3.3`（darwin）、`electron-winstaller@5.4.0` である。最後のスクリプトは同梱の 7-Zip をホスト arch 向けにコピーするだけで、Squirrel 用である。公開ターゲットは ZIP / DMG なので、このスクリプトは配布物を作る経路では使わない。対応リスト 6 の CI 検査は未着手で、検査を入れるときはこの 3 つを想定する。
 
-Linux では `./scripts/build.sh`（`electron-builder --dir`、Electron 45.2.3）が通り、その後の Xvfb スモークは終了コード 0 と `PASS real Electron IPC` だった。D-Bus 接続失敗は出るが、検査は完走する。Mac と Windows のパッケージ、ファイル選択から差分までの実機操作、署名後の Gatekeeper / SmartScreen は未確認である。
+Linux では `./scripts/build.sh`（`electron-builder --dir`、Electron 45.2.3）が通り、その後の Xvfb スモークは終了コード 0 と `PASS real Electron IPC` だった。D-Bus 接続失敗は出るが、検査は完走する。electron-builder 26 が Mac の `.app` に入れる `LICENSE.electron.txt` と `LICENSES.chromium.html` は、`verify-release` の許可リストに加えた。ファイル選択から差分までの実機操作と、署名後の Gatekeeper / SmartScreen は未確認である。
 
 対応リストの 1 はこの変更で閉じる。2 以降（ナビゲーションと権限の拒否、fuse、x/text、Go 版の固定、install script の CI、公開ノート、SBOM）は未着手である。ウィンドウ境界と fuse は、上げたあとに塞ぐ予定のまま残している。
 
@@ -121,7 +121,7 @@ Go 標準ライブラリ: v1.0.0 のエンジンジョブは `go1.27.3`。OSV �
 - エンジンは stdio の子プロセス。待受ポートは無い。デスクトップの本番コードに外向き通信は無い。
 - 依存のダウンロードを狭めている。Go は `GOPROXY=off` とローカル replace。npm は lockfile の `npm ci`。Actions は SHA 固定。ジョブ権限は `contents: read`、公開ジョブだけ `contents: write`。`persist-credentials: false`。
 - `scripts/audit-release.py` が追跡ファイルと履歴の鍵・トークン形、機微パス、原典 blob を見る。
-- `extraResources/licenses` は Go と x/text の LICENSE / PATENTS だけを許可している。Electron / Chromium のライセンスはフレームワーク同梱に依存しており、この許可リストにはコピーしていない。
+- `extraResources/licenses` は Go と x/text の LICENSE / PATENTS だけを許可している。electron-builder 26 は、Mac の zip / dmg に入るのが `.app` だけなので、Electron の `LICENSE` と Chromium の `LICENSES.chromium.html` を `Contents/Resources` へ移す。`verify-release` はその 2 ファイル（`LICENSE.electron.txt` と `LICENSES.chromium.html`）を darwin の許可リストに入れ、空ファイルは拒否する。Go のライセンス置き場には混ぜない。
 
 ## B. 対応リスト
 
